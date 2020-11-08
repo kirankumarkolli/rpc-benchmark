@@ -1,4 +1,6 @@
 bin/
 obj/
 packages/
-rpc-benchmark/Server/Http11NodeJs/node_modules/
+node_modules/
+package-lock.json
+.suo
