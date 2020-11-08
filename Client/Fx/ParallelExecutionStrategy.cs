@@ -29,20 +29,33 @@ namespace CosmosBenchmark
             bool traceFailures,
             double warmupFraction)
         {
-            IExecutor warmupExecutor = new SerialOperationExecutor(
-                        executorId: "Warmup",
-                        benchmarkOperation: this.benchmarkOperation());
-            await warmupExecutor.ExecuteAsync(
-                    (int)(serialExecutorIterationCount * warmupFraction),
-                    isWarmup: true,
-                    traceFailures: traceFailures,
-                    completionCallback: () => { });
+            int warmupPerIterationCount = (int)(serialExecutorIterationCount * warmupFraction) / serialExecutorConcurrency;
+            await this.ExecuteAsyncInternal(
+                serialExecutorConcurrency,
+                warmupPerIterationCount,
+                bWarmpup: true,
+                traceFailures: traceFailures);
+
+            return await this.ExecuteAsyncInternal(
+                serialExecutorConcurrency,
+                serialExecutorIterationCount,
+                bWarmpup: false,
+                traceFailures: traceFailures);
+        }
+
+        private async Task<RunSummary> ExecuteAsyncInternal(
+            int serialExecutorConcurrency,
+            int serialExecutorIterationCount,
+            bool bWarmpup,
+            bool traceFailures)
+        {
+            string executorPrefix = bWarmpup ? "WarmUp" : string.Empty;
 
             IExecutor[] executors = new IExecutor[serialExecutorConcurrency];
             for (int i = 0; i < serialExecutorConcurrency; i++)
             {
                 executors[i] = new SerialOperationExecutor(
-                            executorId: i.ToString(),
+                            executorId: executorPrefix + i.ToString(),
                             benchmarkOperation: this.benchmarkOperation());
             }
 
@@ -56,10 +69,12 @@ namespace CosmosBenchmark
                         completionCallback: () => Interlocked.Decrement(ref this.pendingExecutorCount));
             }
 
-            return await this.LogOutputStats(executors);
+            return await this.LogOutputStatsAndBlockedWait(executors, bWarmpup);
         }
 
-        private async Task<RunSummary> LogOutputStats(IExecutor[] executors)
+        private async Task<RunSummary> LogOutputStatsAndBlockedWait(
+            IExecutor[] executors,
+            bool bWarmpup)
         {
             const int outputLoopDelayInSeconds = 1;
             IList<int> perLoopCounters = new List<int>();
@@ -69,6 +84,7 @@ namespace CosmosBenchmark
             watch.Start();
 
             bool isLastIterationCompleted = false;
+            Console.WriteLine(bWarmpup ? "WarmUp Progress:" : "Workload Progress:");
             do
             {
                 isLastIterationCompleted = this.pendingExecutorCount <= 0;
@@ -93,17 +109,21 @@ namespace CosmosBenchmark
                 Summary diff = currentTotalSummary - lastSummary;
                 lastSummary = currentTotalSummary;
 
-                diff.Print(currentTotalSummary.failedOpsCount + currentTotalSummary.successfulOpsCount);
+                if (!bWarmpup)
+                {
+                    diff.Print(currentTotalSummary.failedOpsCount + currentTotalSummary.successfulOpsCount);
+                }
                 perLoopCounters.Add((int)diff.Rps());
 
                 await Task.Delay(TimeSpan.FromSeconds(outputLoopDelayInSeconds));
             }
             while (!isLastIterationCompleted);
 
-            using (ConsoleColorContext ct = new ConsoleColorContext(ConsoleColor.Green))
+            ConsoleColor consoleColor = bWarmpup ? ConsoleColor.DarkGray : ConsoleColor.Green;
+            using (ConsoleColorContext ct = new ConsoleColorContext(consoleColor))
             {
                 Console.WriteLine();
-                Console.WriteLine("Summary:");
+                Console.WriteLine(bWarmpup ? "WarmUp Summary:" : "Workload Summary:");
                 Console.WriteLine("--------------------------------------------------------------------- ");
                 lastSummary.Print(lastSummary.failedOpsCount + lastSummary.successfulOpsCount);
 
@@ -145,7 +165,7 @@ namespace CosmosBenchmark
                 }
 
                 Console.WriteLine("--------------------------------------------------------------------- ");
-
+                Console.WriteLine();
                 return runSummary;
             }
         }
