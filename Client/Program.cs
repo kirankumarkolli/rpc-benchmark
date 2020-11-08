@@ -26,8 +26,6 @@ namespace CosmosBenchmark
         {
             try
             {
-                BenchmarkConfig.UsePostManTarget = true;
-
                 BenchmarkConfig config = BenchmarkConfig.From(args);
                 ThreadPool.SetMinThreads(config.MinThreadPoolSize, config.MinThreadPoolSize);
 
