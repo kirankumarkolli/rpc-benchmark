@@ -101,7 +101,7 @@ namespace CosmosBenchmark
 
         virtual internal Uri requestUri()
         {
-            return new Uri($"{this.EndPoint}/db/{this.Database}/colls/{this.Container}");
+            return new Uri($"{this.EndPoint.TrimEnd('/')}/dbs/{this.Database}/cols/{this.Container}");
         }
     }
 
@@ -113,8 +113,8 @@ namespace CosmosBenchmark
             this.EndPoint = "https://postman-echo.com/";
             this.IterationCount = 100;
             this.WorkloadType = "Echo11Server";
-            this.Database = "db";
-            this.Container = "container";
+            this.Database = "db1";
+            this.Container = "col1";
         }
 
         internal override Uri requestUri()
