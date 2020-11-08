@@ -57,7 +57,7 @@ namespace CosmosBenchmark
         /// Run samples for Order By queries.
         /// </summary>
         /// <returns>a Task object.</returns>
-        private async Task<RunSummary> ExecuteAsync(BenchmarkConfig config)
+        private async Task ExecuteAsync(BenchmarkConfig config)
         {
             int opsPerTask = config.IterationCount / config.DegreeOfParallelism;
             int taskCount = config.DegreeOfParallelism;
@@ -73,8 +73,6 @@ namespace CosmosBenchmark
             runSummary.TotalOps = config.IterationCount;
             runSummary.Concurrency = taskCount;
             runSummary.AccountName = config.EndPoint;
-
-            return runSummary;
         }
 
         private Func<IBenchmarkOperation> GetBenchmarkFactoryMethod(BenchmarkConfig config)
