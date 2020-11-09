@@ -33,10 +33,12 @@ namespace CosmosBenchmark
         {
             using (MemoryStream input = JsonHelper.ToStream(this.sampleJObject))
             {
-                HttpContent httpContent = new StreamContent(input);
-                using (HttpResponseMessage responseMessage = await this.client.PostAsync(this.requestUri, httpContent))
+                using (HttpContent httpContent = new StreamContent(input))
                 {
-                    responseMessage.EnsureSuccessStatusCode();
+                    using (HttpResponseMessage responseMessage = await this.client.PostAsync(this.requestUri, httpContent))
+                    {
+                        responseMessage.EnsureSuccessStatusCode();
+                    }
                 }
             }
         }
