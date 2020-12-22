@@ -6,9 +6,7 @@ namespace CosmosBenchmark
 {
     using System;
     using System.Collections.Generic;
-    using System.IO;
     using System.Net.Http;
-    using System.Net.Http.Headers;
     using System.Threading.Tasks;
 
     internal class Echo20ServerBenchmarkOperation : IBenchmarkOperation
@@ -26,19 +24,19 @@ namespace CosmosBenchmark
             this.requestUri = config.requestUri();
 
             this.sampleJObject = JsonHelper.Deserialize<Dictionary<string, object>>(config.ItemTemplatePayload());
-            this.client = Echo11ServerBenchmarkOperation.CreateHttpClient(config.MaxConnectionsPerServer());
+            this.client = Utility.CreateHttp2Client(config.MaxConnectionsPerServer());
         }
 
         public async Task ExecuteOnceAsync()
         {
-            var req = new HttpRequestMessage(HttpMethod.Get, this.requestUri)
+            using (var req = new HttpRequestMessage(HttpMethod.Get, this.requestUri))
             {
-                Version = new Version(2, 0)
-            };
+                req.Version = new Version(2, 0);
 
-            using (HttpResponseMessage responseMessage = await this.client.SendAsync(req))
-            {
-                responseMessage.EnsureSuccessStatusCode();
+                using (HttpResponseMessage responseMessage = await this.client.SendAsync(req))
+                {
+                    responseMessage.EnsureSuccessStatusCode();
+                }
             }
         }
 
@@ -50,26 +48,6 @@ namespace CosmosBenchmark
             this.sampleJObject[this.partitionKeyPath] = newPartitionKey;
 
             return Task.CompletedTask;
-        }
-
-
-        public static HttpClient CreateHttpClient(int MaxConnectionsPerServer)
-        {
-            HttpClientHandler httpClientHandler = new HttpClientHandler
-            {
-                MaxConnectionsPerServer = MaxConnectionsPerServer,
-            };
-
-            HttpClient client = new HttpClient(httpClientHandler, disposeHandler: true)
-            {
-                // DefaultRequestVersion = new Version("2.0")
-            };
-
-            client.DefaultRequestHeaders
-                  .Accept
-                  .Add(new MediaTypeWithQualityHeaderValue("application/json"));//ACCEPT header
-
-            return client;
         }
 
     }

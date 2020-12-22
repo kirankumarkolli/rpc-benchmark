@@ -8,7 +8,6 @@ namespace CosmosBenchmark
     using System.Collections.Generic;
     using System.IO;
     using System.Net.Http;
-    using System.Net.Http.Headers;
     using System.Threading.Tasks;
 
     internal class Echo11ServerBenchmarkOperation : IBenchmarkOperation
@@ -26,7 +25,7 @@ namespace CosmosBenchmark
             this.requestUri = config.requestUri();
 
             this.sampleJObject = JsonHelper.Deserialize<Dictionary<string, object>>(config.ItemTemplatePayload());
-            this.client = Echo11ServerBenchmarkOperation.CreateHttpClient(config.MaxConnectionsPerServer());
+            this.client = Utility.CreateHttp1Client(config.MaxConnectionsPerServer());
         }
 
         public async Task ExecuteOnceAsync()
@@ -35,7 +34,7 @@ namespace CosmosBenchmark
             {
                 using (HttpContent httpContent = new StreamContent(input))
                 {
-                    using (HttpResponseMessage responseMessage = await this.client.PostAsync(this.requestUri, httpContent))
+                    using (HttpResponseMessage responseMessage = await this.client.GetAsync(this.requestUri))
                     {
                         responseMessage.EnsureSuccessStatusCode();
                     }
@@ -52,26 +51,5 @@ namespace CosmosBenchmark
 
             return Task.CompletedTask;
         }
-
-
-        public static HttpClient CreateHttpClient(int MaxConnectionsPerServer)
-        {
-            HttpClientHandler httpClientHandler = new HttpClientHandler
-            {
-                MaxConnectionsPerServer = MaxConnectionsPerServer
-            };
-
-            HttpClient client = new HttpClient(httpClientHandler, disposeHandler: true)
-            {
-                DefaultRequestVersion = new Version("1.1")
-            };
-
-            client.DefaultRequestHeaders
-                  .Accept
-                  .Add(new MediaTypeWithQualityHeaderValue("application/json"));//ACCEPT header
-
-            return client;
-        }
-
     }
 }
