@@ -4,3 +4,6 @@ packages/
 node_modules/
 package-lock.json
 .suo
+.idea/
+target/
+.vs/
