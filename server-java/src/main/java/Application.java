@@ -30,14 +30,9 @@ public class Application {
     }
 
     public static void runHttp1Server(int port) throws CertificateException, SSLException {
-        SelfSignedCertificate ssc = new SelfSignedCertificate();
+        SelfSignedCertificate ssc = new SelfSignedCertificate("localhost");
         SslContext sslCtx = SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey())
-                .startTls(true)
-                .applicationProtocolConfig(
-                        new ApplicationProtocolConfig(ApplicationProtocolConfig.Protocol.ALPN,
-                                ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
-                                ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
-                                ApplicationProtocolNames.HTTP_1_1))
+//                .startTls(true)
                 .build();
 
         DisposableServer server =
@@ -50,6 +45,7 @@ public class Application {
                                     (request, response) ->
                                         response
                                                 .status(HttpResponseStatus.OK)
+                                                .keepAlive(true)
                                                 .sendString(Mono.just("Hello world"))
                                     );
                         })
@@ -66,7 +62,7 @@ public class Application {
     public static void runHttp2Server(int port) throws CertificateException, SSLException {
         SelfSignedCertificate ssc = new SelfSignedCertificate();
         SslContext sslCtx = SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey())
-                .startTls(true)
+//                .startTls(true)
                 .build();
 
         DisposableServer server =
