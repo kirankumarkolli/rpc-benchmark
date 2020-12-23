@@ -5,7 +5,9 @@ namespace CosmosBenchmark
 {
     using System;
     using System.Collections.Generic;
+    using System.ComponentModel;
     using System.Diagnostics;
+    using System.Net;
     using System.Net.Http;
     using System.Net.Http.Headers;
     using System.Net.Security;
@@ -41,6 +43,7 @@ namespace CosmosBenchmark
 
         private static HttpClient CreateHttpClient(int maxConnectionsPerServer)
         {
+            ServicePointManager.UseNagleAlgorithm = false;
             SocketsHttpHandler httpClientHandler = new SocketsHttpHandler()
             {
                 MaxConnectionsPerServer = maxConnectionsPerServer,
