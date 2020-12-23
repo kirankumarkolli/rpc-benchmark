@@ -27,10 +27,10 @@ public class Application {
         logger.warn("WARN message");
         logger.error("ERROR message");
 
-//        IServer http1Server = runHttp1Server(8081);
-//        http1Server.BlockedWait();
+        IServer http1Server = runHttp1Server(8080);
+        IServer http2Server = runHttp2Server(8081);
 
-        IServer http2Server = runHttp2Server(8080);
+        http1Server.BlockedWait();
         http2Server.BlockedWait();
     }
 
