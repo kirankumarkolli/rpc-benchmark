@@ -27,100 +27,25 @@ public class Application {
         logger.warn("WARN message");
         logger.error("ERROR message");
 
-        //runHttp1Server(8081);
-        runHttp2Server(8080);
+//        IServer http1Server = runHttp1Server(8081);
+//        http1Server.BlockedWait();
+
+        IServer http2Server = runHttp2Server(8080);
+        http2Server.BlockedWait();
     }
 
-    public static void runHttp1Server(int port) throws CertificateException, SSLException {
-        SelfSignedCertificate ssc = new SelfSignedCertificate("localhost");
-        SslContext sslCtx = SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey())
-//                .startTls(true)
-                .build();
+    public static IServer runHttp1Server(int port) throws CertificateException, SSLException {
 
-        DisposableServer server =
-                HttpServer.create()
-                        .port(port)
-                        .protocol(HttpProtocol.HTTP11)
-                        .secure(spec -> spec.sslContext(sslCtx))
-                        .route(routes -> {
-                                routes.get("/hello",
-                                        (request, response) ->
-                                            response
-                                                    .status(HttpResponseStatus.OK)
-                                                    .keepAlive(true)
-                                                    .sendString(Mono.just("Hello world"))
-                                        );
-                            })
-                        .wiretap(true)
-                        .doOnConnection(connection ->
-                                {
-                                    if (logger.isInfoEnabled()) {
-                                        logger.info("OnConnection for: {}", connection.address());
-                                    }
-                                })
-                        .doOnChannelInit(new ChannelPipelineConfigurer() {
-                                @Override
-                                public void onChannelInit(ConnectionObserver connectionObserver, Channel channel, SocketAddress socketAddress) {
-                                    if (logger.isInfoEnabled()) {
-                                        logger.info("OnChannelInit for: {} -> ", channel.remoteAddress(), channel.localAddress());
-                                    }
-                                }
-                            })
-                        .bindNow();
+        EchoHttp11Server server = new EchoHttp11Server();
+        server.Start(port);
 
-        logger.info("Server listening on port: {}", port);
-
-        server
-            .onDispose()
-            .block();
+        return  server;
     }
 
-    public static void runHttp2Server(int port) throws CertificateException, SSLException {
-        SelfSignedCertificate ssc = new SelfSignedCertificate();
-        SslContext sslCtx = SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey())
-//                .startTls(true)
-                .ciphers(Http2SecurityUtil.CIPHERS, SupportedCipherSuiteFilter.INSTANCE)
-                .applicationProtocolConfig(
-                        new ApplicationProtocolConfig(ApplicationProtocolConfig.Protocol.ALPN,
-                                ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
-                                ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
-                                ApplicationProtocolNames.HTTP_2))
-                .build();
+    public static IServer runHttp2Server(int port) throws CertificateException, SSLException {
+        EchoHttp20Server server = new EchoHttp20Server();
+        server.Start(port);
 
-        DisposableServer server =
-                HttpServer.create()
-                        .host("localhost")
-                        .port(port)
-                        .protocol(HttpProtocol.H2)
-                        .secure(spec -> spec.sslContext(sslCtx))
-                        .route(routes -> {
-                            routes.get("/hello",
-                                    (request, response) ->
-                                            response
-                                                    .status(HttpResponseStatus.OK)
-                                                    .sendString(Mono.just("Hello world"))
-                            );
-                        })
-                        .doOnConnection(connection ->
-                        {
-                            if (logger.isInfoEnabled()) {
-                                logger.info("OnConnection for: {}", connection.address());
-                            }
-                        })
-                        .doOnChannelInit(new ChannelPipelineConfigurer() {
-                            @Override
-                            public void onChannelInit(ConnectionObserver connectionObserver, Channel channel, SocketAddress socketAddress) {
-                                if (logger.isInfoEnabled()) {
-                                    logger.info("OnChannelInit for: {} -> ", channel.remoteAddress(), channel.localAddress());
-                                }
-                            }
-                        })
-                        .bindNow();
-
-        logger.info("Server listening on port: {}", port);
-
-        server
-                .onDispose()
-                .block();
-    }
+        return  server;
+   }
 }
