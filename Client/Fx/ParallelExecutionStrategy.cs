@@ -36,8 +36,9 @@ namespace CosmosBenchmark
                 bWarmpup: true,
                 traceFailures: traceFailures);
 
-            Console.WriteLine("WARM-UP complete. Press ENTER to continue");
-            Console.ReadLine();
+            Console.WriteLine("WARM-UP complete. Continuing for full run");
+            //Console.WriteLine("WARM-UP complete. Press ENTER to continue");
+            //Console.ReadLine();
 
             return await this.ExecuteAsyncInternal(
                 serialExecutorConcurrency,
