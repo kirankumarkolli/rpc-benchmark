@@ -13,7 +13,7 @@ namespace CosmosBenchmark
     internal class Echo11ServerBenchmarkOperation : IBenchmarkOperation
     {
         private static HttpClient client;
-        private readonly Uri requestUri;
+        private readonly string requestUri;
 
         private readonly string partitionKeyPath;
         private readonly Dictionary<string, object> sampleJObject;
@@ -22,7 +22,7 @@ namespace CosmosBenchmark
         {
             this.partitionKeyPath = config.PartitionKeyPath.Replace("/", "");
 
-            this.requestUri = config.requestUri();
+            this.requestUri = config.requestBaseUri().ToString();
 
             this.sampleJObject = JsonHelper.Deserialize<Dictionary<string, object>>(config.ItemTemplatePayload());
             if (Echo11ServerBenchmarkOperation.client == null)
@@ -37,7 +37,8 @@ namespace CosmosBenchmark
             {
                 using (HttpContent httpContent = new StreamContent(input))
                 {
-                    using (HttpResponseMessage responseMessage = await Echo11ServerBenchmarkOperation.client.GetAsync(this.requestUri))
+                    using (HttpResponseMessage responseMessage = await Echo11ServerBenchmarkOperation.client
+                                    .GetAsync(this.requestUri + Guid.NewGuid().ToString()))
                     {
                         responseMessage.EnsureSuccessStatusCode();
                     }
