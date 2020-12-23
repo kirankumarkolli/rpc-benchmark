@@ -1,9 +1,7 @@
 import io.netty.channel.Channel;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.handler.ssl.ApplicationProtocolConfig;
-import io.netty.handler.ssl.ApplicationProtocolNames;
-import io.netty.handler.ssl.SslContext;
-import io.netty.handler.ssl.SslContextBuilder;
+import io.netty.handler.codec.http2.Http2SecurityUtil;
+import io.netty.handler.ssl.*;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
 import reactor.core.publisher.Mono;
 import reactor.netty.ChannelPipelineConfigurer;
@@ -29,8 +27,8 @@ public class Application {
         logger.warn("WARN message");
         logger.error("ERROR message");
 
-        runHttp1Server(8081);
-        //runHttp2Server(8080);
+        //runHttp1Server(8081);
+        runHttp2Server(8080);
     }
 
     public static void runHttp1Server(int port) throws CertificateException, SSLException {
@@ -81,6 +79,12 @@ public class Application {
         SelfSignedCertificate ssc = new SelfSignedCertificate();
         SslContext sslCtx = SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey())
 //                .startTls(true)
+                .ciphers(Http2SecurityUtil.CIPHERS, SupportedCipherSuiteFilter.INSTANCE)
+                .applicationProtocolConfig(
+                        new ApplicationProtocolConfig(ApplicationProtocolConfig.Protocol.ALPN,
+                                ApplicationProtocolConfig.SelectorFailureBehavior.NO_ADVERTISE,
+                                ApplicationProtocolConfig.SelectedListenerFailureBehavior.ACCEPT,
+                                ApplicationProtocolNames.HTTP_2))
                 .build();
 
         DisposableServer server =
@@ -96,6 +100,20 @@ public class Application {
                                                     .status(HttpResponseStatus.OK)
                                                     .sendString(Mono.just("Hello world"))
                             );
+                        })
+                        .doOnConnection(connection ->
+                        {
+                            if (logger.isInfoEnabled()) {
+                                logger.info("OnConnection for: {}", connection.address());
+                            }
+                        })
+                        .doOnChannelInit(new ChannelPipelineConfigurer() {
+                            @Override
+                            public void onChannelInit(ConnectionObserver connectionObserver, Channel channel, SocketAddress socketAddress) {
+                                if (logger.isInfoEnabled()) {
+                                    logger.info("OnChannelInit for: {} -> ", channel.remoteAddress(), channel.localAddress());
+                                }
+                            }
                         })
                         .bindNow();
 
