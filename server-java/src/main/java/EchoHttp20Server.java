@@ -40,7 +40,19 @@ public class EchoHttp20Server extends EchoServerBase {
                 .route(routes -> {
                     routes.get("/hello",
                             (request, response) ->
-                                    Utils.OKResponseWithStringBody(response, "Hello World")
+                                    Utils.OKResponseWithJsonBody(response, Utils.testJsonPayload)
+                    );
+                })
+                .route(routes -> {
+                    routes.get("/dbs/{dbid}", // colls/{collid}/docs/{docid}
+                            (request, response) ->
+                            {
+//                                logger.debug("/dbs/{}/colls/{}/docs/{}",
+//                                        request.param("dbid"),
+//                                        request.param("collid"),
+//                                        request.param("docid"));
+                                return Utils.OKResponseWithJsonBody(response, Utils.testJsonPayload);
+                            }
                     );
                 })
                 .doOnConnection(connection ->

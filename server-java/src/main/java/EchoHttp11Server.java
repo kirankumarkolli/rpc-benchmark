@@ -31,9 +31,21 @@ public class EchoHttp11Server extends EchoServerBase {
                 .protocol(HttpProtocol.HTTP11)
                 .secure(spec -> spec.sslContext(sslCtx))
                 .route(routes -> {
-                    routes.get("/hello",
+                    routes
+                        .get("/hello",
                             (request, response) ->
-                                    Utils.OKResponseWithStringBody(response, "Hello World")
+                                    //Utils.OKResponseWithStringBody(response, "Hello World")
+                                    Utils.OKResponseWithJsonBody(response, Utils.testJsonPayload)
+                            )
+                        .get("/dbs/{dbname}",
+                            (request, response) ->
+                            {
+//                                logger.debug("/dbs/{}/colls/{}/docs/{}",
+//                                        request.param("dbid"),
+//                                        request.param("collid"),
+//                                        request.param("docid"));
+                                return Utils.OKResponseWithJsonBody(response, Utils.testJsonPayload);
+                            }
                     );
                 })
                 .wiretap(true)
