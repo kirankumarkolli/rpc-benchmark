@@ -1,3 +1,4 @@
+import io.netty.channel.Channel;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.ssl.ApplicationProtocolConfig;
 import io.netty.handler.ssl.ApplicationProtocolNames;
@@ -5,10 +6,13 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
 import reactor.core.publisher.Mono;
+import reactor.netty.ChannelPipelineConfigurer;
+import reactor.netty.ConnectionObserver;
 import reactor.netty.DisposableServer;
 import reactor.netty.http.HttpProtocol;
 import reactor.netty.http.server.HttpServer;
 
+import java.net.SocketAddress;
 import java.security.cert.CertificateException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,18 +45,32 @@ public class Application {
                         .protocol(HttpProtocol.HTTP11)
                         .secure(spec -> spec.sslContext(sslCtx))
                         .route(routes -> {
-                            routes.get("/hello",
-                                    (request, response) ->
-                                        response
-                                                .status(HttpResponseStatus.OK)
-                                                .keepAlive(true)
-                                                .sendString(Mono.just("Hello world"))
-                                    );
-                        })
+                                routes.get("/hello",
+                                        (request, response) ->
+                                            response
+                                                    .status(HttpResponseStatus.OK)
+                                                    .keepAlive(true)
+                                                    .sendString(Mono.just("Hello world"))
+                                        );
+                            })
                         .wiretap(true)
+                        .doOnConnection(connection ->
+                                {
+                                    if (logger.isInfoEnabled()) {
+                                        logger.info("OnConnection for: {}", connection.address());
+                                    }
+                                })
+                        .doOnChannelInit(new ChannelPipelineConfigurer() {
+                                @Override
+                                public void onChannelInit(ConnectionObserver connectionObserver, Channel channel, SocketAddress socketAddress) {
+                                    if (logger.isInfoEnabled()) {
+                                        logger.info("OnChannelInit for: {} -> ", channel.remoteAddress(), channel.localAddress());
+                                    }
+                                }
+                            })
                         .bindNow();
 
-        System.out.println(String.format("Server address {}", server));
+        logger.info("Server listening on port: {}", port);
 
         server
             .onDispose()
