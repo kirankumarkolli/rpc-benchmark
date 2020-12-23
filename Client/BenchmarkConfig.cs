@@ -6,6 +6,7 @@ namespace CosmosBenchmark
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.IO;
     using System.Linq;
     using System.Runtime;
@@ -56,7 +57,7 @@ namespace CosmosBenchmark
             }
         }
 
-        internal static bool UsePostManTarget { get; set; } = false;
+        internal static bool UsePostManTarget { get; set; } = Debugger.IsAttached;
         internal static BenchmarkConfig From(string[] args)
         {
             if (BenchmarkConfig.UsePostManTarget)
