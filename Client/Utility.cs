@@ -8,6 +8,8 @@ namespace CosmosBenchmark
     using System.Diagnostics;
     using System.Net.Http;
     using System.Net.Http.Headers;
+    using System.Net.Security;
+    using System.Security.Cryptography.X509Certificates;
     using System.Text;
 
     internal static class Utility
@@ -39,10 +41,14 @@ namespace CosmosBenchmark
 
         private static HttpClient CreateHttpClient(int maxConnectionsPerServer)
         {
-            HttpClientHandler httpClientHandler = new HttpClientHandler
+            SocketsHttpHandler httpClientHandler = new SocketsHttpHandler()
             {
                 MaxConnectionsPerServer = maxConnectionsPerServer,
-                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
+                SslOptions = new SslClientAuthenticationOptions()
+                {
+                    RemoteCertificateValidationCallback = 
+                        (object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors) => true
+                }
             };
 
             HttpClient client = new HttpClient(httpClientHandler, disposeHandler: true);
