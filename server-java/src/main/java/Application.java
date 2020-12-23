@@ -117,7 +117,7 @@ public class Application {
                         })
                         .bindNow();
 
-        System.out.println(String.format("Server address {}", server));
+        logger.info("Server listening on port: {}", port);
 
         server
                 .onDispose()
