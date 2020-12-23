@@ -12,7 +12,7 @@ namespace CosmosBenchmark
 
     internal class Echo11ServerBenchmarkOperation : IBenchmarkOperation
     {
-        private readonly HttpClient client;
+        private static HttpClient client;
         private readonly Uri requestUri;
 
         private readonly string partitionKeyPath;
@@ -25,16 +25,19 @@ namespace CosmosBenchmark
             this.requestUri = config.requestUri();
 
             this.sampleJObject = JsonHelper.Deserialize<Dictionary<string, object>>(config.ItemTemplatePayload());
-            this.client = Utility.CreateHttp1Client(config.MaxConnectionsPerServer());
+            if (Echo11ServerBenchmarkOperation.client == null)
+            {
+                Echo11ServerBenchmarkOperation.client = Utility.CreateHttp1Client(config.MaxConnectionsPerServer());
+            }
         }
 
-        public async Task ExecuteOnceAsync()
+    public async Task ExecuteOnceAsync()
         {
             using (MemoryStream input = JsonHelper.ToStream(this.sampleJObject))
             {
                 using (HttpContent httpContent = new StreamContent(input))
                 {
-                    using (HttpResponseMessage responseMessage = await this.client.GetAsync(this.requestUri))
+                    using (HttpResponseMessage responseMessage = await Echo11ServerBenchmarkOperation.client.GetAsync(this.requestUri))
                     {
                         responseMessage.EnsureSuccessStatusCode();
                     }
