@@ -86,9 +86,9 @@ public class RntbdServer extends EchoServerBase {
                         pipeline.addLast(
                                 new SslHandler(engine),
                                 new LoggingHandler(finalLogLevel),
-                                new ServerRntbdRequestFramer(),
+                                new RntbdRequestFrameInAdapter(),
                                 new RntbdCodec(),
-                                new ServerRntbdRequestProcessor()
+                                new EchoRntbdRequestProcessor()
                         );
                     }
                 })

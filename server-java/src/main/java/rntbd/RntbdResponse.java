@@ -289,52 +289,6 @@ public final class RntbdResponse implements ReferenceCounted, IRntbdResponse {
         return this;
     }
 
-    static RntbdResponse decode(final ByteBuf in) {
-
-        final int start = in.markReaderIndex().readerIndex();
-
-        final RntbdResponseStatus frame = RntbdResponseStatus.decode(in);
-        final RntbdResponseHeaders headers = RntbdResponseHeaders.decode(in.readSlice(frame.getHeadersLength()));
-        final boolean hasPayload = headers.isPayloadPresent();
-        final ByteBuf content;
-
-        if (hasPayload) {
-
-            if (!RntbdFramer.canDecodePayload(in)) {
-                in.resetReaderIndex();
-                return null;
-            }
-
-            content = in.readSlice(in.readIntLE());
-
-        } else {
-
-            content = Unpooled.EMPTY_BUFFER;
-        }
-
-        final int end = in.readerIndex();
-        in.resetReaderIndex();
-
-        return new RntbdResponse(in.readSlice(end - start), frame, headers, content);
-    }
-//
-//    StoreResponse toStoreResponse(final RntbdContext context) {
-//
-//        checkNotNull(context, "expected non-null context");
-//
-//        final int length = this.content.writerIndex();
-//        final byte[] content;
-//
-//        if (length == 0) {
-//            content = null;
-//        } else {
-//            content = new byte[length];
-//            this.content.getBytes(0, content);
-//        }
-//
-//        return new StoreResponse(this.getStatus().code(), this.headers.asList(context, this.getActivityId()), content);
-//    }
-
     // endregion
 
     // region Types

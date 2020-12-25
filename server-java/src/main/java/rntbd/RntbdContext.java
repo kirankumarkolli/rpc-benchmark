@@ -24,21 +24,6 @@ public final class RntbdContext implements IRntbdResponse {
     private final ServerProperties serverProperties;
     private final long unauthenticatedTimeoutInSeconds;
 
-    private RntbdContext(final RntbdResponseStatus responseStatus, final Headers headers) {
-
-        this.activityId = responseStatus.getActivityId();
-        this.status = responseStatus.getStatus();
-
-        this.clientVersion = headers.clientVersion.getValue(String.class);
-        this.idleTimeoutInSeconds = headers.idleTimeoutInSeconds.getValue(Long.class);
-        this.protocolVersion = headers.protocolVersion.getValue(Long.class).intValue();
-        this.unauthenticatedTimeoutInSeconds = headers.unauthenticatedTimeoutInSeconds.getValue(Long.class);
-
-        this.serverProperties = new ServerProperties(
-                headers.serverAgent.getValue(String.class), headers.serverVersion.getValue(String.class)
-        );
-    }
-
     public RntbdContext(
             final UUID activityId,
             final HttpResponseStatus status,
@@ -103,50 +88,6 @@ public final class RntbdContext implements IRntbdResponse {
         return this.unauthenticatedTimeoutInSeconds;
     }
 
-    public static RntbdContext decode(final ByteBuf in) {
-
-        in.markReaderIndex();
-
-        final RntbdResponseStatus responseStatus = RntbdResponseStatus.decode(in);
-        final int statusCode = responseStatus.getStatusCode();
-        final int headersLength = responseStatus.getHeadersLength();
-
-        if (statusCode < 200 || statusCode >= 400) {
-            if (!RntbdFramer.canDecodePayload(in, in.readerIndex() + headersLength)) {
-                in.resetReaderIndex();
-                return null;
-            }
-        }
-
-        final Headers headers = Headers.decode(in.readSlice(headersLength));
-
-        if (statusCode < 200 || statusCode >= 400) {
-
-            final ObjectNode details = ServerRntbdObjectMapper.readTree(in.readSlice(in.readIntLE()));
-            final HashMap<String, Object> map = new HashMap<>(4);
-
-            if (headers.clientVersion.isPresent()) {
-                map.put("requiredClientVersion", headers.clientVersion.getValue());
-            }
-
-            if (headers.protocolVersion.isPresent()) {
-                map.put("requiredProtocolVersion", headers.protocolVersion.getValue());
-            }
-
-            if (headers.serverAgent.isPresent()) {
-                map.put("serverAgent", headers.serverAgent.getValue());
-            }
-
-            if (headers.serverVersion.isPresent()) {
-                map.put("serverVersion", headers.serverVersion.getValue());
-            }
-
-            throw new RntbdContextException(responseStatus.getStatus(), details, Collections.unmodifiableMap(map));
-        }
-
-        return new RntbdContext(responseStatus, headers);
-    }
-
     @Override
     public void encode(final ByteBuf out) {
 
@@ -197,12 +138,6 @@ public final class RntbdContext implements IRntbdResponse {
             this.serverAgent = this.get(RntbdConstants.RntbdContextHeader.ServerAgent);
             this.serverVersion = this.get(RntbdConstants.RntbdContextHeader.ServerVersion);
             this.unauthenticatedTimeoutInSeconds = this.get(RntbdConstants.RntbdContextHeader.UnauthenticatedTimeoutInSeconds);
-        }
-
-        static Headers decode(final ByteBuf in) {
-            final Headers headers = new Headers(in);
-            Headers.decode(headers);
-            return headers;
         }
     }
 }

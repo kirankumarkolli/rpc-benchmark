@@ -1,42 +1,36 @@
 package rntbd;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.EmptyByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.handler.codec.http.HttpResponseStatus;
-import io.netty.util.ReferenceCountUtil;
-import io.netty.util.ReferenceCounted;
-import io.netty.util.concurrent.ImmediateEventExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.math.BigInteger;
 import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 /**
  * Processing incoming requests.
  */
-public final class ServerRntbdRequestProcessor extends ChannelDuplexHandler {
-    private final static Logger logger = LoggerFactory.getLogger(ServerRntbdRequestProcessor.class);
+public final class EchoRntbdRequestProcessor extends ChannelDuplexHandler {
+    private final static Logger logger = LoggerFactory.getLogger(EchoRntbdRequestProcessor.class);
 
-    public ServerRntbdRequestProcessor() {
+    public EchoRntbdRequestProcessor() {
         super();
     }
 
     @Override
     public void channelRead(final ChannelHandlerContext context, final Object message) throws Exception {
-        if (!(message instanceof ServerRntbdRequest)) {
+        if (!(message instanceof RntbdRequest)) {
             ByteBuf tryByteBuf = (ByteBuf) message;
             long hashCode = (tryByteBuf == null) ? message.hashCode() : tryByteBuf.memoryAddress();
             throw new Exception(String.format("Unexpeted message [msg-id: {}] type: {}", hashCode, message.getClass().getName()));
         }
 
         IRntbdResponse response = null;
-        ServerRntbdRequest request = (ServerRntbdRequest) message;
+        RntbdRequest request = (RntbdRequest) message;
         logger.warn("[cid: 0x{} msg-id: {}] channelRead msg: {}", context.channel().id(), message.hashCode(), message);
 
         if (request.resourceTypeInt == 0 && request.operationTypeInt == 0) { // connection-Connect

@@ -7,8 +7,8 @@ import io.netty.util.ReferenceCountUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public final class ServerRntbdContextEncoder extends MessageToByteEncoder<IRntbdResponse> {
-    private final static Logger logger = LoggerFactory.getLogger(ServerRntbdContextEncoder.class);
+public final class RntbdEncoder extends MessageToByteEncoder<IRntbdResponse> {
+    private final static Logger logger = LoggerFactory.getLogger(RntbdEncoder.class);
 
     @Override
     protected void encode(ChannelHandlerContext ctx, IRntbdResponse msg, ByteBuf out) {
