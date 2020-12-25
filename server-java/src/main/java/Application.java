@@ -12,6 +12,8 @@ import reactor.netty.http.server.HttpServer;
 
 import java.net.SocketAddress;
 import java.security.cert.CertificateException;
+import java.util.concurrent.ExecutionException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,7 +22,7 @@ import javax.net.ssl.SSLException;
 public class Application {
     private final static Logger logger = LoggerFactory.getLogger(Application.class);
 
-    public static void main(String[] args) throws CertificateException, SSLException {
+    public static void main(String[] args) throws CertificateException, SSLException, ExecutionException, InterruptedException {
         logger.trace("TRACE message");
         logger.debug("DEBUG message");
         logger.info("INFO message");
@@ -29,9 +31,11 @@ public class Application {
 
         IServer http1Server = runHttp1Server(8080);
         IServer http2Server = runHttp2Server(8081);
+        IServer rntbdServer = runRntbdServer(8082);
 
         http1Server.BlockedWait();
         http2Server.BlockedWait();
+        rntbdServer.BlockedWait();
     }
 
     public static IServer runHttp1Server(int port) throws CertificateException, SSLException {
@@ -48,4 +52,11 @@ public class Application {
 
         return  server;
    }
+
+    public static IServer runRntbdServer(int port) throws CertificateException, SSLException, ExecutionException, InterruptedException {
+        RntbdServer server = new RntbdServer();
+        server.Start(port);
+
+        return  server;
+    }
 }
