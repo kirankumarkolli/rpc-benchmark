@@ -25,7 +25,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 
 @JsonPropertyOrder({ "messageLength", "referenceCount", "frame", "headers", "content" })
-public final class RntbdResponse implements ReferenceCounted {
+public final class RntbdResponse implements ReferenceCounted, IRntbdResponse {
 
     // region Fields
 
@@ -138,6 +138,7 @@ public final class RntbdResponse implements ReferenceCounted {
      *
      * @param out the output {@link ByteBuf byte buffer}.
      */
+    @Override
     public void encode(final ByteBuf out) {
 
         final int start = out.writerIndex();

@@ -14,7 +14,7 @@ import java.util.UUID;
 
 import static com.google.common.base.Preconditions.checkState;
 
-public final class RntbdContext {
+public final class RntbdContext implements IRntbdResponse {
 
     private final UUID activityId;
     private final HttpResponseStatus status;
@@ -128,6 +128,7 @@ public final class RntbdContext {
         return new RntbdContext(responseStatus, headers);
     }
 
+    @Override
     public void encode(final ByteBuf out) {
 
         final Headers headers = new Headers(this);
