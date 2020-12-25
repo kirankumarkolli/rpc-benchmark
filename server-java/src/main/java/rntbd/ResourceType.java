@@ -10,6 +10,7 @@ public enum ResourceType {
     // REQUIRED: This enum must be kept in sync with the ResourceType enum in backend native
 
     Unknown("Unknown", -1),
+    Connection("Connection", 0),
     Attachment("Attachment", 3),
     BatchApply("BatchApply", 112),
     DocumentCollection("DocumentCollection", 1),

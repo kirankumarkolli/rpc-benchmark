@@ -39,6 +39,25 @@ public final class RntbdContext implements IRntbdResponse {
         );
     }
 
+    public RntbdContext(
+            final UUID activityId,
+            final HttpResponseStatus status,
+            final String clientVersion,
+            final long idleTimeoutInSeconds,
+            final int protocolVersion,
+            final long unauthenticatedTimeoutInSeconds,
+            final String serverAgent,
+            final String serverVersion) {
+        this.activityId = activityId;
+        this.status = status;
+        this.clientVersion = clientVersion;
+        this.idleTimeoutInSeconds = idleTimeoutInSeconds;
+        this.protocolVersion = protocolVersion;
+        this.unauthenticatedTimeoutInSeconds = unauthenticatedTimeoutInSeconds;
+        this.serverProperties = new ServerProperties(serverAgent, serverVersion);
+
+    }
+
     @JsonProperty
     public UUID activityId() {
         return this.activityId;

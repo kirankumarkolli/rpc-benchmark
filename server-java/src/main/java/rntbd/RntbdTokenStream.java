@@ -6,6 +6,8 @@ import com.google.common.collect.Maps;
 import io.netty.buffer.ByteBuf;
 import io.netty.handler.codec.CorruptedFrameException;
 import io.netty.util.ReferenceCounted;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.stream.Collector;
 
@@ -16,6 +18,7 @@ import static com.google.common.base.Strings.lenientFormat;
 
 @SuppressWarnings("UnstableApiUsage")
 abstract class RntbdTokenStream<T extends Enum<T> & RntbdConstants.RntbdHeader> implements ReferenceCounted {
+    private final static Logger logger = LoggerFactory.getLogger(RntbdTokenStream.class);
 
     final ByteBuf in;
     final ImmutableMap<Short, T> headers;
@@ -65,6 +68,7 @@ abstract class RntbdTokenStream<T extends Enum<T> & RntbdConstants.RntbdHeader> 
 
         while (in.readableBytes() > 0) {
 
+            int startPosition = in.readerIndex();
             final short id = in.readShortLE();
             final RntbdTokenType type = RntbdTokenType.fromId(in.readByte());
 
@@ -75,12 +79,17 @@ abstract class RntbdTokenStream<T extends Enum<T> & RntbdConstants.RntbdHeader> 
             }
 
             token.decode(in);
+
+            int endPosition = in.readerIndex();
+            if (startPosition != endPosition) {
+                logger.error("[msg-id: {}] decode({}, {}): token: {}", in.memoryAddress(), startPosition, endPosition, token);
+            }
         }
 
         for (final RntbdToken token : stream.tokens.values()) {
             if (!token.isPresent() && token.isRequired()) {
-                final String message = lenientFormat("Required header not found on token stream: %s", token);
-                throw new CorruptedFrameException(message);
+                logger.error("[msg-id: {}] Required header not found on token stream: {}", in.memoryAddress(), token);
+                // throw new CorruptedFrameException(message);
             }
         }
 

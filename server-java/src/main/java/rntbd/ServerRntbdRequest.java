@@ -3,74 +3,51 @@
 
 package rntbd;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.netty.buffer.ByteBuf;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import static com.google.common.base.Strings.lenientFormat;
-import static com.google.common.base.Preconditions.checkNotNull;
-
+import java.util.UUID;
 
 public final class ServerRntbdRequest {
-    private static final byte[] EMPTY_BYTE_ARRAY = {};
+    private final static Logger logger = LoggerFactory.getLogger(ServerRntbdRequest.class);
 
-    private final ServerRntbdRequestFrame frame;
-    private final ServerRntbdRequestHeaders headers;
-    private final byte[] payload;
+    public final int resourceTypeInt;
+    public final int operationTypeInt;
+    public final UUID activityId;
+    public final long transportRequestId;
 
-    private ServerRntbdRequest(final ServerRntbdRequestFrame frame, final ServerRntbdRequestHeaders headers, final byte[] payload) {
+    private ServerRntbdRequest(final int resourceType,
+                               final int operationType,
+                               final UUID activityId,
+                               final long transactionalId) {
 
-        checkNotNull(frame, "frame");
-        checkNotNull(headers, "headers");
-
-        this.frame = frame;
-        this.headers = headers;
-        this.payload = payload == null ? EMPTY_BYTE_ARRAY : payload;
-    }
-
-    @JsonIgnore
-    @SuppressWarnings("unchecked")
-    public <T> T getHeader(final RntbdConstants.RntbdRequestHeader header) {
-        return (T) this.headers.get(header).getValue();
+        this.resourceTypeInt = resourceType;
+        this.operationTypeInt = operationType;
+        this.activityId = activityId;
+        this.transportRequestId = transactionalId;
     }
 
     public static ServerRntbdRequest decode(final ByteBuf in) {
+        final int length = in.getIntLE(in.readerIndex());
+        final int resourceTypeInt = in.getUnsignedShortLE(in.readerIndex() + Integer.BYTES);
+        final int operationTypeInt = in.getUnsignedShortLE(in.readerIndex() + Integer.BYTES + 2); // UINT (resource type)
 
-        final int resourceOperationCode = in.getInt(in.readerIndex() + Integer.BYTES);
+        final int activityIdPos = in.readerIndex() + 8;
+        in.readerIndex(activityIdPos);
+        UUID activityUuid = RntbdUUID.decode(in);
+        logger.info("[msg-id: {}] ServerRntbdRequest.decode length: {} resourceType: {} operationType: {} activityId: {}", in.memoryAddress(), length, resourceTypeInt, operationTypeInt, activityUuid);
 
-        if (resourceOperationCode == 0) {
-            final String reason = String.format("resourceOperationCode=0x%08X", resourceOperationCode);
-            throw new IllegalStateException(reason);
+        long transactionalId = 0; // not-defined
+        if (resourceTypeInt != 0) {
+            // HACK: RntbdToken types are overloaded (ex: ProtocolVersion in connect vs payloadpresent in request)
+            in.readerIndex(activityIdPos + 16);
+            ServerRntbdRequestHeaders requestHeaders = ServerRntbdRequestHeaders.decode(in);
+            transactionalId = (long)requestHeaders.get(RntbdConstants.RntbdRequestHeader.TransportRequestID).getValue();
         }
 
-        final int start = in.readerIndex();
-        final int expectedLength = in.readIntLE();
-
-        final ByteBuf headerBuf = in.readSlice(expectedLength - (in.readerIndex() - start));
-        final ServerRntbdRequestFrame header = ServerRntbdRequestFrame.decode(headerBuf);
-        final ServerRntbdRequestHeaders metadata = ServerRntbdRequestHeaders.decode(headerBuf);
-
-        RntbdToken payloadPresent = metadata.get(RntbdConstants.RntbdRequestHeader.PayloadPresent);
-
-        if (payloadPresent != null && payloadPresent.getValue(Byte.class) != 0 && in.readableBytes() == 0) {
-            // Body is not there yet, let's wait for the body as well.
-            return null;
-        }
-
-        final int payloadStart = in.readerIndex();
-        final int payloadExpectedLength = in.readIntLE();
-        final ByteBuf payloadBuf = in.readSlice(payloadExpectedLength - (in.readerIndex() - payloadStart));
-
-        final int observedLength = in.readerIndex() - payloadStart;
-
-        if (observedLength != payloadExpectedLength) {
-            final String reason = lenientFormat("expectedLength=%s, observedLength=%s", payloadExpectedLength, observedLength);
-            throw new IllegalStateException(reason);
-        }
-
-        final byte[] payload = new byte[payloadBuf.readableBytes()];
-        payloadBuf.readBytes(payload);
+        in.readerIndex(length);
         in.discardReadBytes();
-
-        return new ServerRntbdRequest(header, metadata, payload);
+        return new ServerRntbdRequest(resourceTypeInt, operationTypeInt, activityUuid, transactionalId);
     }
 }
