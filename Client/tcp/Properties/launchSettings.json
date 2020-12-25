@@ -1,0 +1,7 @@
+{
+  "profiles": {
+    "Microsoft.Azure.Cosmos": {
+      "commandName": "Project"
+    }
+  }
+}
