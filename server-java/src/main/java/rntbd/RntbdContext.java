@@ -165,30 +165,6 @@ public final class RntbdContext implements IRntbdResponse {
         checkState(end - start == responseStatus.getLength());
     }
 
-    public static RntbdContext from(final RntbdContextRequest request, final ServerProperties properties, final HttpResponseStatus status) {
-
-        // NOTE TO CODE REVIEWERS
-        // ----------------------
-        // In its current form this method is meant to enable a limited set of test scenarios. It will be revised as
-        // required to support test scenarios as they are developed.
-
-        final Headers headers = new Headers(Unpooled.EMPTY_BUFFER);
-
-        headers.clientVersion.setValue(request.getClientVersion());
-        headers.idleTimeoutInSeconds.setValue(0);
-        headers.protocolVersion.setValue(RntbdConstants.CURRENT_PROTOCOL_VERSION);
-        headers.serverAgent.setValue(properties.getAgent());
-        headers.serverVersion.setValue(properties.getVersion());
-        headers.unauthenticatedTimeoutInSeconds.setValue(0);
-
-        final int length = RntbdResponseStatus.LENGTH + headers.computeLength();
-        final UUID activityId = request.getActivityId();
-
-        final RntbdResponseStatus responseStatus = new RntbdResponseStatus(length, status, activityId);
-
-        return new RntbdContext(responseStatus, headers);
-    }
-
     @Override
     public String toString() {
         return ServerRntbdObjectMapper.toString(this);
