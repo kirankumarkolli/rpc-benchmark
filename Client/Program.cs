@@ -26,8 +26,6 @@ namespace CosmosBenchmark
         /// <param name="args">command line arguments.</param>
         public static async Task Main(string[] args)
         {
-            await TestTcpClient.ReadTest();
-
             try
             {
                 ServicePointManager.UseNagleAlgorithm = false;

@@ -21,7 +21,7 @@ namespace CosmosBenchmark
         {
             this.partitionKeyPath = config.PartitionKeyPath.Replace("/", "");
 
-            this.requestUri = config.requestBaseUri().ToString();
+            this.requestUri = config.RequestBaseUri().ToString();
 
             this.sampleJObject = JsonHelper.Deserialize<Dictionary<string, object>>(config.ItemTemplatePayload());
             if (Echo20ServerBenchmarkOperation.client == null)

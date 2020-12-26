@@ -97,7 +97,7 @@ namespace CosmosBenchmark
             return this.DegreeOfParallelism;
         }
 
-        virtual internal Uri requestUri()
+        virtual internal Uri RequestBaseUri()
         {
             return new Uri($"{this.EndPoint.TrimEnd('/')}/dbs/{this.Database}/cols/{this.Container}");
         }
@@ -115,7 +115,7 @@ namespace CosmosBenchmark
             this.Container = "col1";
         }
 
-        internal override Uri requestUri()
+        internal override Uri RequestBaseUri()
         {
             return new Uri(this.EndPoint + "post");
         }

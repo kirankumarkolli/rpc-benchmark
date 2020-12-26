@@ -22,7 +22,7 @@ namespace CosmosBenchmark
         {
             this.partitionKeyPath = config.PartitionKeyPath.Replace("/", "");
 
-            this.requestUri = config.requestBaseUri().ToString();
+            this.requestUri = config.RequestBaseUri().ToString();
 
             this.sampleJObject = JsonHelper.Deserialize<Dictionary<string, object>>(config.ItemTemplatePayload());
             if (Echo11ServerBenchmarkOperation.client == null)
@@ -37,8 +37,9 @@ namespace CosmosBenchmark
             {
                 using (HttpContent httpContent = new StreamContent(input))
                 {
+                    string targetUri = this.requestUri + Guid.NewGuid().ToString();
                     using (HttpResponseMessage responseMessage = await Echo11ServerBenchmarkOperation.client
-                                    .GetAsync(this.requestUri + Guid.NewGuid().ToString()))
+                                    .GetAsync(targetUri))
                     {
                         responseMessage.EnsureSuccessStatusCode();
                     }
