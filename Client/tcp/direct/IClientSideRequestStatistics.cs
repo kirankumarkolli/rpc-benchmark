@@ -19,8 +19,6 @@ namespace Microsoft.Azure.Documents
 
         void RecordRequest(DocumentServiceRequest request);
 
-        void RecordResponse(DocumentServiceRequest request, StoreResult storeResult);
-
         string RecordAddressResolutionStart(Uri targetEndpoint);
 
         void RecordAddressResolutionEnd(string identifier);

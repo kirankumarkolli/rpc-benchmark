@@ -103,20 +103,13 @@ namespace Microsoft.Azure.Documents
 
             this.OnSave();
 
-            if ((typeof(Document).IsAssignableFrom(this.GetType()) && !this.GetType().Equals(typeof(Document))))
+            if (JsonSerializable.JustPocoSerialization)
             {
-                serializer.Serialize(writer, this);
+                this.propertyBag.WriteTo(writer);
             }
             else
             {
-                if (JsonSerializable.JustPocoSerialization)
-                {
-                    this.propertyBag.WriteTo(writer);
-                }
-                else
-                {
-                    serializer.Serialize(writer, this.propertyBag);
-                }
+                serializer.Serialize(writer, this.propertyBag);
             }
             writer.Flush();
         }

@@ -469,21 +469,9 @@ namespace Microsoft.Azure.Documents
             if (resourceName == null)
                 return null;
 
-            if (resourceType == typeof(Database))
-            {
-                return Paths.DatabasesPathSegment + "/" + resourceName;
-            }
-            else if (resourceOwnerFullName == null)
+            if (resourceOwnerFullName == null)
             {
                 return null;
-            }
-            else if (resourceType == typeof(StoredProcedure))
-            {
-                return resourceOwnerFullName + "/" + Paths.StoredProceduresPathSegment + "/" + resourceName;
-            }
-            else if (typeof(Document).IsAssignableFrom(resourceType))
-            {
-                return resourceOwnerFullName + "/" + Paths.DocumentsPathSegment + "/" + resourceName;
             }
             else if (typeof(Resource).IsAssignableFrom(resourceType))
             {
@@ -1439,17 +1427,7 @@ namespace Microsoft.Azure.Documents
 
         internal static bool IsPublicResource(Type resourceType)
         {
-            if (resourceType == typeof(Database) ||
-                resourceType == typeof(StoredProcedure) ||
-                resourceType == typeof(User) ||
-                typeof(Document).IsAssignableFrom(resourceType))
-            {
-                return true;
-            }
-            else
-            {
-                return false;
-            }
+            return false;
         }
 
 

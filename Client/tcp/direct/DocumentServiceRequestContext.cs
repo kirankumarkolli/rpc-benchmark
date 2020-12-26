@@ -13,11 +13,7 @@ namespace Microsoft.Azure.Documents
     {
         public TimeoutHelper TimeoutHelper { get; set; }
 
-        public RequestChargeTracker RequestChargeTracker { get; set; }
-
         public bool ForceRefreshAddressCache { get; set; }
-
-        public StoreResult QuorumSelectedStoreResponse { get; set; }
 
         /// <summary>
         /// Cache the string representation of last returned store responses when exercising QuorumReader logic
@@ -29,19 +25,6 @@ namespace Microsoft.Azure.Documents
         public long QuorumSelectedLSN { get; set; }
 
         public long GlobalCommittedSelectedLSN { get; set; }
-
-        /// <summary>
-        /// Cache the write storeResult in context during global strong
-        /// where we want to lock on a single initial write response and perform barrier calls until globalCommittedLsn is caught up
-        /// </summary>
-        public StoreResult GlobalStrongWriteStoreResult { get; set; }
-
-        /// <summary>
-        /// Unique Identity that represents the target partition where the request should reach.
-        /// In gateway it is same as ServiceIdentity. 
-        /// In client it is a string that represents the partition and service index
-        /// </summary>
-        public ServiceIdentity TargetIdentity { get; set; }
 
         /// <summary>
         /// If the StoreReader should perform the local refresh for GoneException instead of 
@@ -124,9 +107,7 @@ namespace Microsoft.Azure.Documents
             DocumentServiceRequestContext requestContext = new DocumentServiceRequestContext();
 
             requestContext.TimeoutHelper = this.TimeoutHelper;
-            requestContext.RequestChargeTracker = this.RequestChargeTracker;
             requestContext.ForceRefreshAddressCache = this.ForceRefreshAddressCache;
-            requestContext.TargetIdentity = this.TargetIdentity;
             requestContext.PerformLocalRefreshOnGoneException = this.PerformLocalRefreshOnGoneException;
             requestContext.PerformedBackgroundAddressRefresh = this.PerformedBackgroundAddressRefresh;
             requestContext.ResolvedCollectionRid = this.ResolvedCollectionRid;

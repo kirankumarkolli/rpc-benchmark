@@ -200,12 +200,6 @@ namespace Microsoft.Azure.Documents
         /// </summary>
         public bool UseStatusCodeFor429 { get; set; }
 
-        /// <summary>
-        /// ServiceIdentity of the target service where this request should reach
-        /// Only valid for gateway
-        /// </summary>
-        public ServiceIdentity ServiceIdentity { get; private set; }
-
         public SystemAuthorizationParameters SystemAuthorizationParams { get; set; }
 
         public sealed class SystemAuthorizationParameters
@@ -746,12 +740,6 @@ namespace Microsoft.Azure.Documents
             this.CloneableBody = await StreamExtension.AsClonableStreamAsync(this.Body);
         }
 
-        public void ClearRoutingHints()
-        {
-            this.ServiceIdentity = null;
-            this.RequestContext.TargetIdentity = null;
-        }
-
         public DocumentServiceRequest Clone()
         {
             if (!this.IsBodySeekableClonableAndCountable)
@@ -763,7 +751,6 @@ namespace Microsoft.Azure.Documents
                OperationType = this.OperationType,
                ForceNameCacheRefresh = this.ForceNameCacheRefresh,
                ResourceType = this.ResourceType,
-               ServiceIdentity = this.ServiceIdentity,
                SystemAuthorizationParams = this.SystemAuthorizationParams == null ? null : this.SystemAuthorizationParams.Clone(),
                // Body = this.Body, // intentionally don't clone body, as it is not cloneable.
                CloneableBody = this.CloneableBody != null ? this.CloneableBody.Clone() : null,

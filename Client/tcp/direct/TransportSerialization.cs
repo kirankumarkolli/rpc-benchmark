@@ -1248,31 +1248,31 @@ namespace Microsoft.Azure.Documents.Rntbd
 
         private static void AddRemoteStorageType(DocumentServiceRequest request, RntbdConstants.Request rntbdRequest)
         {
-            if (!string.IsNullOrEmpty(request.Headers[WFConstants.BackendHeaders.RemoteStorageType]))
-            {
-                RntbdConstants.RntbdRemoteStorageType rntbdRemoteStorageType = RntbdConstants.RntbdRemoteStorageType.Invalid;
-                if (!Enum.TryParse(request.Headers[WFConstants.BackendHeaders.RemoteStorageType], true, out RemoteStorageType remoteStorageType))
-                {
-                    throw new BadRequestException(String.Format(CultureInfo.CurrentUICulture, RMResources.InvalidEnumValue,
-                        request.Headers[WFConstants.BackendHeaders.RemoteStorageType], typeof(RemoteStorageType).Name));
-                }
+            //if (!string.IsNullOrEmpty(request.Headers[WFConstants.BackendHeaders.RemoteStorageType]))
+            //{
+            //    RntbdConstants.RntbdRemoteStorageType rntbdRemoteStorageType = RntbdConstants.RntbdRemoteStorageType.Invalid;
+            //    if (!Enum.TryParse(request.Headers[WFConstants.BackendHeaders.RemoteStorageType], true, out RemoteStorageType remoteStorageType))
+            //    {
+            //        throw new BadRequestException(String.Format(CultureInfo.CurrentUICulture, RMResources.InvalidEnumValue,
+            //            request.Headers[WFConstants.BackendHeaders.RemoteStorageType], typeof(RemoteStorageType).Name));
+            //    }
 
-                switch (remoteStorageType)
-                {
-                case RemoteStorageType.Standard:
-                    rntbdRemoteStorageType = RntbdConstants.RntbdRemoteStorageType.Standard;
-                    break;
-                case RemoteStorageType.Premium:
-                    rntbdRemoteStorageType = RntbdConstants.RntbdRemoteStorageType.Premium;
-                    break;
-                default:
-                    throw new BadRequestException(String.Format(CultureInfo.CurrentUICulture, RMResources.InvalidEnumValue,
-                        request.Headers[WFConstants.BackendHeaders.RemoteStorageType], typeof(RemoteStorageType).Name));
-                }
+            //    switch (remoteStorageType)
+            //    {
+            //    case RemoteStorageType.Standard:
+            //        rntbdRemoteStorageType = RntbdConstants.RntbdRemoteStorageType.Standard;
+            //        break;
+            //    case RemoteStorageType.Premium:
+            //        rntbdRemoteStorageType = RntbdConstants.RntbdRemoteStorageType.Premium;
+            //        break;
+            //    default:
+            //        throw new BadRequestException(String.Format(CultureInfo.CurrentUICulture, RMResources.InvalidEnumValue,
+            //            request.Headers[WFConstants.BackendHeaders.RemoteStorageType], typeof(RemoteStorageType).Name));
+            //    }
 
-                rntbdRequest.remoteStorageType.value.valueByte = (byte) rntbdRemoteStorageType;
-                rntbdRequest.remoteStorageType.isPresent = true;
-            }
+            //    rntbdRequest.remoteStorageType.value.valueByte = (byte) rntbdRemoteStorageType;
+            //    rntbdRequest.remoteStorageType.isPresent = true;
+            //}
         }
 
         private static void AddCollectionChildResourceNameLimitInBytes(DocumentServiceRequest request, RntbdConstants.Request rntbdRequest)
@@ -1439,51 +1439,51 @@ namespace Microsoft.Azure.Documents.Rntbd
 
         private static void AddEnumerationDirection(DocumentServiceRequest request, RntbdConstants.Request rntbdRequest)
         {
-            if (request.Properties != null && request.Properties.TryGetValue(
-                    HttpConstants.HttpHeaders.EnumerationDirection,
-                    out object enumerationDirectionObject))
-            {
-                byte? scanDirection = enumerationDirectionObject as byte?;
-                if (scanDirection == null)
-                {
-                    throw new BadRequestException(
-                        String.Format(
-                            CultureInfo.CurrentUICulture,
-                            RMResources.InvalidEnumValue,
-                            HttpConstants.HttpHeaders.EnumerationDirection,
-                            nameof(EnumerationDirection)));
-                }
-                else
-                {
-                    rntbdRequest.enumerationDirection.value.valueByte = scanDirection.Value;
-                    rntbdRequest.enumerationDirection.isPresent = true;
-                }
-            }
-            else if (!string.IsNullOrEmpty(request.Headers[HttpConstants.HttpHeaders.EnumerationDirection]))
-            {
-                RntbdConstants.RntdbEnumerationDirection rntdbEnumerationDirection = RntbdConstants.RntdbEnumerationDirection.Invalid;
-                if (!Enum.TryParse(request.Headers[HttpConstants.HttpHeaders.EnumerationDirection], true, out EnumerationDirection enumerationDirection))
-                {
-                    throw new BadRequestException(String.Format(CultureInfo.CurrentUICulture, RMResources.InvalidEnumValue,
-                        request.Headers[HttpConstants.HttpHeaders.EnumerationDirection], nameof(EnumerationDirection)));
-                }
+            //if (request.Properties != null && request.Properties.TryGetValue(
+            //        HttpConstants.HttpHeaders.EnumerationDirection,
+            //        out object enumerationDirectionObject))
+            //{
+            //    byte? scanDirection = enumerationDirectionObject as byte?;
+            //    if (scanDirection == null)
+            //    {
+            //        throw new BadRequestException(
+            //            String.Format(
+            //                CultureInfo.CurrentUICulture,
+            //                RMResources.InvalidEnumValue,
+            //                HttpConstants.HttpHeaders.EnumerationDirection,
+            //                nameof(EnumerationDirection)));
+            //    }
+            //    else
+            //    {
+            //        rntbdRequest.enumerationDirection.value.valueByte = scanDirection.Value;
+            //        rntbdRequest.enumerationDirection.isPresent = true;
+            //    }
+            //}
+            //else if (!string.IsNullOrEmpty(request.Headers[HttpConstants.HttpHeaders.EnumerationDirection]))
+            //{
+            //    RntbdConstants.RntdbEnumerationDirection rntdbEnumerationDirection = RntbdConstants.RntdbEnumerationDirection.Invalid;
+            //    if (!Enum.TryParse(request.Headers[HttpConstants.HttpHeaders.EnumerationDirection], true, out EnumerationDirection enumerationDirection))
+            //    {
+            //        throw new BadRequestException(String.Format(CultureInfo.CurrentUICulture, RMResources.InvalidEnumValue,
+            //            request.Headers[HttpConstants.HttpHeaders.EnumerationDirection], nameof(EnumerationDirection)));
+            //    }
 
-                switch (enumerationDirection)
-                {
-                    case EnumerationDirection.Forward:
-                        rntdbEnumerationDirection = RntbdConstants.RntdbEnumerationDirection.Forward;
-                        break;
-                    case EnumerationDirection.Reverse:
-                        rntdbEnumerationDirection = RntbdConstants.RntdbEnumerationDirection.Reverse;
-                        break;
-                    default:
-                        throw new BadRequestException(String.Format(CultureInfo.CurrentUICulture, RMResources.InvalidEnumValue,
-                            request.Headers[HttpConstants.HttpHeaders.EnumerationDirection], typeof(EnumerationDirection).Name));
-                }
+            //    switch (enumerationDirection)
+            //    {
+            //        case EnumerationDirection.Forward:
+            //            rntdbEnumerationDirection = RntbdConstants.RntdbEnumerationDirection.Forward;
+            //            break;
+            //        case EnumerationDirection.Reverse:
+            //            rntdbEnumerationDirection = RntbdConstants.RntdbEnumerationDirection.Reverse;
+            //            break;
+            //        default:
+            //            throw new BadRequestException(String.Format(CultureInfo.CurrentUICulture, RMResources.InvalidEnumValue,
+            //                request.Headers[HttpConstants.HttpHeaders.EnumerationDirection], typeof(EnumerationDirection).Name));
+            //    }
 
-                rntbdRequest.enumerationDirection.value.valueByte = (byte)rntdbEnumerationDirection;
-                rntbdRequest.enumerationDirection.isPresent = true;
-            }
+            //    rntbdRequest.enumerationDirection.value.valueByte = (byte)rntdbEnumerationDirection;
+            //    rntbdRequest.enumerationDirection.isPresent = true;
+            //}
         }
 
         private static void AddStartAndEndKeys(DocumentServiceRequest request, RntbdConstants.Request rntbdRequest)
@@ -1674,34 +1674,34 @@ namespace Microsoft.Azure.Documents.Rntbd
 
         private static void AddFanoutOperationStateHeader(DocumentServiceRequest request, RntbdConstants.Request rntbdRequest)
         {
-            string value = request.Headers[WFConstants.BackendHeaders.FanoutOperationState];
-            if (!string.IsNullOrEmpty(value))
-            {
-                if (!Enum.TryParse(value, true, out FanoutOperationState state))
-                {
-                    throw new BadRequestException(
-                        String.Format(CultureInfo.CurrentUICulture, RMResources.InvalidEnumValue, value, nameof(FanoutOperationState)));
-                }
+            //string value = request.Headers[WFConstants.BackendHeaders.FanoutOperationState];
+            //if (!string.IsNullOrEmpty(value))
+            //{
+            //    if (!Enum.TryParse(value, true, out FanoutOperationState state))
+            //    {
+            //        throw new BadRequestException(
+            //            String.Format(CultureInfo.CurrentUICulture, RMResources.InvalidEnumValue, value, nameof(FanoutOperationState)));
+            //    }
 
-                RntbdConstants.RntbdFanoutOperationState rntbdState;
-                switch (state)
-                {
-                    case FanoutOperationState.Started:
-                        rntbdState = RntbdConstants.RntbdFanoutOperationState.Started;
-                        break;
+            //    RntbdConstants.RntbdFanoutOperationState rntbdState;
+            //    switch (state)
+            //    {
+            //        case FanoutOperationState.Started:
+            //            rntbdState = RntbdConstants.RntbdFanoutOperationState.Started;
+            //            break;
 
-                    case FanoutOperationState.Completed:
-                        rntbdState = RntbdConstants.RntbdFanoutOperationState.Completed;
-                        break;
+            //        case FanoutOperationState.Completed:
+            //            rntbdState = RntbdConstants.RntbdFanoutOperationState.Completed;
+            //            break;
 
-                    default:
-                        throw new BadRequestException(
-                            String.Format(CultureInfo.CurrentUICulture, RMResources.InvalidEnumValue, value, nameof(FanoutOperationState)));
-                }
+            //        default:
+            //            throw new BadRequestException(
+            //                String.Format(CultureInfo.CurrentUICulture, RMResources.InvalidEnumValue, value, nameof(FanoutOperationState)));
+            //    }
 
-                rntbdRequest.FanoutOperationState.value.valueByte = (byte)rntbdState;
-                rntbdRequest.FanoutOperationState.isPresent = true;
-            }
+            //    rntbdRequest.FanoutOperationState.value.valueByte = (byte)rntbdState;
+            //    rntbdRequest.FanoutOperationState.isPresent = true;
+            //}
         }
 
         private static void AddResourceTypes(DocumentServiceRequest request, RntbdConstants.Request rntbdRequest)
