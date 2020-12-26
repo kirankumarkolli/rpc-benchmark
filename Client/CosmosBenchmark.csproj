@@ -7,8 +7,6 @@
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <Optimize Condition="'$(Configuration)'=='Release'">true</Optimize>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <DefineConstants>TRACE;COSMOSCLIENT</DefineConstants>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
