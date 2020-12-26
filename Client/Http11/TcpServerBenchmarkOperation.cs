@@ -7,9 +7,11 @@ namespace CosmosBenchmark
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Net;
     using System.Text;
     using System.Threading.Tasks;
     using Microsoft.Azure.Cosmos;
+    using Microsoft.Azure.Documents.Collections;
     using Microsoft.Azure.Documents.Rntbd;
 
     internal class TcpServerBenchmarkOperation : IBenchmarkOperation
@@ -43,11 +45,28 @@ namespace CosmosBenchmark
                     resourceOperation: Microsoft.Azure.Documents.ResourceOperation.ReadDocument,
                     request: reqeust);
 
-                if (storeResponse.StatusCode != System.Net.HttpStatusCode.OK)
+                Microsoft.Azure.Documents.DocumentServiceResponse documentServiceResponse = this.CompleteResponse(storeResponse, reqeust);
+
+                if (documentServiceResponse.StatusCode != System.Net.HttpStatusCode.OK)
                 {
                     throw new Exception($"Unexpected status code {storeResponse.StatusCode}");
                 }
             }
+        }
+        private Microsoft.Azure.Documents.DocumentServiceResponse CompleteResponse(
+            Microsoft.Azure.Documents.StoreResponse storeResponse,
+            Microsoft.Azure.Documents.DocumentServiceRequest request)
+        {
+            INameValueCollection headersFromStoreResponse = storeResponse.Headers;
+
+            Microsoft.Azure.Documents.DocumentServiceResponse response = new Microsoft.Azure.Documents.DocumentServiceResponse(
+                storeResponse.ResponseBody,
+                headersFromStoreResponse,
+                (HttpStatusCode)storeResponse.Status,
+                null,
+                request.SerializerSettings);
+
+            return response;
         }
 
         public Task PrepareAsync()
