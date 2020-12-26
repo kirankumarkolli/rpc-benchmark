@@ -7,3 +7,7 @@ package-lock.json
 .idea/
 target/
 .vs/
+.settings/
+/server-java/.classpath
+/server-java/.factorypath
+/server-java/.project
