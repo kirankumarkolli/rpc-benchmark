@@ -4,15 +4,13 @@
 namespace CosmosBenchmark
 {
     using System;
-    using System.Collections.Generic;
-    using System.ComponentModel;
     using System.Diagnostics;
     using System.Net;
     using System.Net.Http;
     using System.Net.Http.Headers;
     using System.Net.Security;
     using System.Security.Cryptography.X509Certificates;
-    using System.Text;
+    using Grpc.Net.Client;
     using Microsoft.Azure.Documents.Rntbd;
 
     internal static class Utility
@@ -66,18 +64,19 @@ namespace CosmosBenchmark
                 });
         }
 
+        public static GrpcChannel CreateGrpcChannel(string endPoint, int maxConnectionsPerServer)
+        {
+            return GrpcChannel.ForAddress(endPoint, 
+                    new GrpcChannelOptions()
+                    {
+                        HttpHandler = GetHttpMessageHandler(maxConnectionsPerServer)
+                    });
+        }
+
         private static HttpClient CreateHttpClient(int maxConnectionsPerServer)
         {
             ServicePointManager.UseNagleAlgorithm = false;
-            SocketsHttpHandler httpClientHandler = new SocketsHttpHandler()
-            {
-                MaxConnectionsPerServer = maxConnectionsPerServer,
-                SslOptions = new SslClientAuthenticationOptions()
-                {
-                    RemoteCertificateValidationCallback = 
-                        (object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors) => true
-                }
-            };
+            HttpMessageHandler httpClientHandler = GetHttpMessageHandler(maxConnectionsPerServer);
 
             HttpClient client = new HttpClient(httpClientHandler, disposeHandler: true);
             client.DefaultRequestHeaders
@@ -87,5 +86,17 @@ namespace CosmosBenchmark
             return client;
         }
 
+        private static HttpMessageHandler GetHttpMessageHandler(int maxConnectionsPerServer)
+        {
+            return new SocketsHttpHandler()
+            {
+                MaxConnectionsPerServer = maxConnectionsPerServer,
+                SslOptions = new SslClientAuthenticationOptions()
+                {
+                    RemoteCertificateValidationCallback =
+                        (object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors) => true
+                }
+            };
+        }
     }
 }
