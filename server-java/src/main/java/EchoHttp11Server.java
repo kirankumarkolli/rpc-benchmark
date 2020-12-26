@@ -15,6 +15,7 @@ import reactor.netty.http.server.HttpServerResponse;
 import javax.net.ssl.SSLException;
 import java.net.SocketAddress;
 import java.security.cert.CertificateException;
+import java.time.Duration;
 
 public class EchoHttp11Server extends EchoServerBase {
     private final static Logger logger = LoggerFactory.getLogger(EchoHttp11Server.class);
@@ -30,36 +31,26 @@ public class EchoHttp11Server extends EchoServerBase {
                 .port(port)
                 .protocol(HttpProtocol.HTTP11)
                 .secure(spec -> spec.sslContext(sslCtx))
+                .idleTimeout(Duration.ofMinutes(5))
                 .route(routes -> {
                     routes
                         .get("/hello",
-                            (request, response) ->
-                                    //Utils.OKResponseWithStringBody(response, "Hello World")
-                                    Utils.OKResponseWithJsonBody(response, Utils.testJsonPayload)
-                            )
+                                (request, response) ->  Utils.OKResponseWithJsonBody(response, Utils.testJsonPayload))
                         .get("/dbs/{dbname}",
-                            (request, response) ->
-                            {
-//                                logger.debug("/dbs/{}/colls/{}/docs/{}",
-//                                        request.param("dbid"),
-//                                        request.param("collid"),
-//                                        request.param("docid"));
-                                return Utils.OKResponseWithJsonBody(response, Utils.testJsonPayload);
-                            }
-                    );
+                                (request, response) ->  Utils.OKResponseWithJsonBody(response, Utils.testJsonPayload));
                 })
-                .wiretap(true)
-                .doOnConnection(connection ->
-                {
-                    if (logger.isInfoEnabled()) {
-                        logger.info("OnConnection for: {}", connection.address());
-                    }
-                })
+                //.wiretap(true)
+//                .doOnConnection(connection ->
+//                {
+//                    if (logger.isWarnEnabled()) {
+//                        logger.warn("[cid: 0x{}] OnConnection for: {}", connection.channel().id(), connection.address());
+//                    }
+//                })
                 .doOnChannelInit(new ChannelPipelineConfigurer() {
                     @Override
                     public void onChannelInit(ConnectionObserver connectionObserver, Channel channel, SocketAddress socketAddress) {
-                        if (logger.isInfoEnabled()) {
-                            logger.info("OnChannelInit for: {} -> ", channel.remoteAddress(), channel.localAddress());
+                        if (logger.isWarnEnabled()) {
+                            logger.warn("[cid: 0x{}] OnChannelInit addr: {} -> {}", channel.id(), channel.remoteAddress(), channel.localAddress());
                         }
                     }
                 })

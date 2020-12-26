@@ -8,22 +8,22 @@ import java.util.UUID;
 public class Utils {
     public  static NettyOutbound OKResponseWithJsonBody(HttpServerResponse response,
                                                                String responseBody) {
-        response.status(HttpResponseStatus.OK);
         Utils.AddDefaultHeaders(response,
                 "application/json",
                 responseBody.length());
 
+        response.status(HttpResponseStatus.OK);
         return response.sendString(Mono.just(responseBody));
     }
 
-    public  static NettyOutbound OKResponseWithStringBody(HttpServerResponse response,
+    public  static HttpServerResponse OKResponseWithStringBody(HttpServerResponse response,
                                                           String responseBody) {
-        response.status(HttpResponseStatus.OK);
         Utils.AddDefaultHeaders(response,
                 "text/html; charset=UTF-8",
                 responseBody.length());
 
-        return response.sendString(Mono.just(responseBody));
+        response.sendString(Mono.just(responseBody));
+        return response.status(HttpResponseStatus.OK);
     }
 
     public  static void AddDefaultHeaders(HttpServerResponse response,

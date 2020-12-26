@@ -17,7 +17,7 @@ import java.net.SocketAddress;
 import java.security.cert.CertificateException;
 
 public class EchoHttp20Server extends EchoServerBase {
-    private final static Logger logger = LoggerFactory.getLogger(EchoHttp11Server.class);
+    private final static Logger logger = LoggerFactory.getLogger(EchoHttp20Server.class);
 
     @Override
     public void Start(int port) throws CertificateException, SSLException {
@@ -37,35 +37,23 @@ public class EchoHttp20Server extends EchoServerBase {
                 .port(port)
                 .protocol(HttpProtocol.H2)
                 .secure(spec -> spec.sslContext(sslCtx))
+                .http2Settings(settings -> settings.maxConcurrentStreams(5))
+//                .handle((request, response) -> Utils.OKResponseWithJsonBody(response, Utils.testJsonPayload))
                 .route(routes -> {
-                    routes.get("/hello",
-                            (request, response) ->
-                                    Utils.OKResponseWithJsonBody(response, Utils.testJsonPayload)
-                    );
+                    routes.get("/dbs/{dbname}",
+                        (request, response) ->  Utils.OKResponseWithJsonBody(response, Utils.testJsonPayload));
                 })
-                .route(routes -> {
-                    routes.get("/dbs/{dbid}", // colls/{collid}/docs/{docid}
-                            (request, response) ->
-                            {
-//                                logger.debug("/dbs/{}/colls/{}/docs/{}",
-//                                        request.param("dbid"),
-//                                        request.param("collid"),
-//                                        request.param("docid"));
-                                return Utils.OKResponseWithJsonBody(response, Utils.testJsonPayload);
-                            }
-                    );
-                })
-                .doOnConnection(connection ->
-                {
-                    if (logger.isInfoEnabled()) {
-                        logger.info("OnConnection for: {}", connection.address());
-                    }
-                })
+//                .doOnConnection(connection ->
+//                {
+//                    if (logger.isInfoEnabled()) {
+//                        logger.warn("[cid: 0x{}] OnConnection for: {}", connection.channel().id(), connection.address());
+//                    }
+//                })
                 .doOnChannelInit(new ChannelPipelineConfigurer() {
                     @Override
                     public void onChannelInit(ConnectionObserver connectionObserver, Channel channel, SocketAddress socketAddress) {
                         if (logger.isInfoEnabled()) {
-                            logger.info("OnChannelInit for: {} -> ", channel.remoteAddress(), channel.localAddress());
+                            logger.warn("[cid: 0x{}] OnChannelInit addr: {} -> {}", channel.id(), channel.remoteAddress(), channel.localAddress());
                         }
                     }
                 })
