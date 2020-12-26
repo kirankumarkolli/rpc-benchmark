@@ -31,7 +31,7 @@ public final class EchoRntbdRequestProcessor extends ChannelDuplexHandler {
 
         IRntbdResponse response = null;
         RntbdRequest request = (RntbdRequest) message;
-        logger.warn("[cid: 0x{} msg-id: {}] channelRead msg: {}", context.channel().id(), message.hashCode(), message);
+        logger.info("[cid: 0x{} msg-id: {}] channelRead msg: {}", context.channel().id(), message.hashCode(), message);
 
         if (request.resourceTypeInt == 0 && request.operationTypeInt == 0) { // connection-Connect
             response = new RntbdContext(
@@ -72,7 +72,7 @@ public final class EchoRntbdRequestProcessor extends ChannelDuplexHandler {
                     Unpooled.EMPTY_BUFFER);
         }
 
-        logger.warn("[cid: 0x{} msg-id: {}] created new msg: {}", context.channel().id(), message.hashCode(), response.hashCode());
+        logger.info("[cid: 0x{} msg-id: {}] created new msg: {}", context.channel().id(), message.hashCode(), response.hashCode());
 
         // ReferenceCountUtil.safeRelease(message);
         context.fireChannelReadComplete();

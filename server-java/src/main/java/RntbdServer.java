@@ -85,17 +85,19 @@ public class RntbdServer extends EchoServerBase {
                         ChannelPipeline pipeline = channel.pipeline();
                         pipeline.addLast(
                                 new SslHandler(engine),
-                                new LoggingHandler(finalLogLevel),
+                                //new LoggingHandler(finalLogLevel),
                                 new RntbdRequestFrameInAdapter(),
                                 new RntbdCodec(),
                                 new EchoRntbdRequestProcessor()
                         );
+
+                        logger.warn("[cid: 0x{}] created a new pipeline", channel.id());
                     }
                 })
                 .childOption(ChannelOption.SO_KEEPALIVE, true);
 
         bootstrap.bind(port).get();
 
-        logger.info("RntbdServer listening on port: {}", port);
+        logger.warn("RntbdServer listening on port: {}", port);
     }
 }

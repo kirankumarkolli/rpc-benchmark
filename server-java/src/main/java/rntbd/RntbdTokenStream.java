@@ -82,7 +82,7 @@ abstract class RntbdTokenStream<T extends Enum<T> & RntbdConstants.RntbdHeader> 
 
             int endPosition = in.readerIndex();
             if (startPosition != endPosition) {
-                logger.error("[msg-id: {}] decode({}, {}): token: {}", in.memoryAddress(), startPosition, endPosition, token);
+                logger.info("[msg-id: {}] decode({}, {}): token: {}", in.memoryAddress(), startPosition, endPosition, token);
             }
         }
 

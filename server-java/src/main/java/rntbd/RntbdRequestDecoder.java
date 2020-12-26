@@ -20,7 +20,7 @@ public final class RntbdRequestDecoder extends ByteToMessageDecoder {
             final ByteBuf in,
             final List<Object> out) throws Exception {
 
-        logger.warn("[cid: 0x{} msg-id: {}] ", context.channel().id(), in.memoryAddress());
+        logger.info("[cid: 0x{} msg-id: {}] ", context.channel().id(), in.memoryAddress());
 
         final RntbdRequest request = RntbdRequest.decode(in);
         logger.info("[cid: 0x{} msg-id: {}] channelRead resourceType: {} operationType: {} decoded-msg-id: {}", context.channel().id(), in.memoryAddress(), request.resourceTypeInt, request.operationTypeInt, request.hashCode());

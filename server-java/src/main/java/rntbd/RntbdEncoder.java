@@ -12,7 +12,7 @@ public final class RntbdEncoder extends MessageToByteEncoder<IRntbdResponse> {
 
     @Override
     protected void encode(ChannelHandlerContext ctx, IRntbdResponse msg, ByteBuf out) {
-        logger.warn("[cid: 0x{} msg-id: {}] encode", ctx.channel().id(), msg.hashCode());
+        logger.info("[cid: 0x{} msg-id: {}] encode", ctx.channel().id(), msg.hashCode());
 
         msg.encode(out);
 
