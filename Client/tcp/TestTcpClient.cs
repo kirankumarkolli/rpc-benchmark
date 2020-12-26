@@ -39,18 +39,18 @@ namespace Microsoft.Azure.Cosmos
                     Documents.ResourceType.Document,
                     Documents.AuthorizationTokenType.PrimaryMasterKey);
 
-            Trace.CorrelationManager.ActivityId = Guid.NewGuid();
-            reqeust.Headers.Add("x-ms-activity-id", Trace.CorrelationManager.ToString());
-
-            Microsoft.Azure.Documents.StoreResponse storeResponse = await transportClient.InvokeStoreAsync(
-                //physicalAddress: new Uri("rnbd://cdb-ms-prod-eastus1-fd40.documents.azure.com:14364"),
-                physicalAddress: new Uri("http://localhost:8082"),
-                resourceOperation: Microsoft.Azure.Documents.ResourceOperation.ReadDocument,
-                request: reqeust);
-
-            if (storeResponse.StatusCode != System.Net.HttpStatusCode.OK)
+            using (ActivityScope activityScope = new ActivityScope(Guid.NewGuid()))
             {
-                throw new Exception($"Unexpected status code {storeResponse.StatusCode}");
+                Microsoft.Azure.Documents.StoreResponse storeResponse = await transportClient.InvokeStoreAsync(
+                    //physicalAddress: new Uri("rnbd://cdb-ms-prod-eastus1-fd40.documents.azure.com:14364"),
+                    physicalAddress: new Uri("http://localhost:8082"),
+                    resourceOperation: Microsoft.Azure.Documents.ResourceOperation.ReadDocument,
+                    request: reqeust);
+
+                if (storeResponse.StatusCode != System.Net.HttpStatusCode.OK)
+                {
+                    throw new Exception($"Unexpected status code {storeResponse.StatusCode}");
+                }
             }
         }
     }
