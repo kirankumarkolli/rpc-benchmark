@@ -13,6 +13,7 @@ namespace CosmosBenchmark
     using System.Net.Security;
     using System.Security.Cryptography.X509Certificates;
     using System.Text;
+    using Microsoft.Azure.Documents.Rntbd;
 
     internal static class Utility
     {
@@ -39,6 +40,30 @@ namespace CosmosBenchmark
             client.DefaultRequestVersion = new Version(2, 0);
 
             return client;
+        }
+
+        public static TransportClient CreateTcpClient(int maxConnectionsPerServer)
+        {
+            return new TransportClient(
+                new TransportClient.Options(TimeSpan.FromSeconds(240))
+                {
+                    MaxChannels = maxConnectionsPerServer,
+                    PartitionCount = 1,
+                    MaxRequestsPerChannel = 10,
+                    //PortReuseMode = PortReuseMode.,
+                    //PortPoolReuseThreshold = rntbdPortPoolReuseThreshold,
+                    //PortPoolBindAttempts = rntbdPortPoolBindAttempts,
+                    ReceiveHangDetectionTime = TimeSpan.FromSeconds(20),
+                    SendHangDetectionTime = TimeSpan.FromSeconds(20),
+                    //UserAgent = "TestClient",
+                    //CertificateHostNameOverride = overrideHostNameInCertificate,
+                    OpenTimeout = TimeSpan.FromSeconds(240),
+                    TimerPoolResolution = TimeSpan.FromSeconds(2),
+                    IdleTimeout = TimeSpan.FromSeconds(20),
+                    EnableCpuMonitor = true,
+                    // CallerId = callerId,
+                    //ConnectionStateListener = this.connectionStateListener
+                });
         }
 
         private static HttpClient CreateHttpClient(int maxConnectionsPerServer)
