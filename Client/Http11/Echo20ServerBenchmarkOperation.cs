@@ -38,7 +38,8 @@ namespace CosmosBenchmark
                 req.Version = new Version(2, 0);
 
                 using (HttpResponseMessage responseMessage = await Echo20ServerBenchmarkOperation.client
-                                        .GetAsync(this.requestUri + Guid.NewGuid().ToString()))
+                                        .GetAsync(this.requestUri + Guid.NewGuid().ToString(), 
+                                            HttpCompletionOption.ResponseHeadersRead))
                 {
                     responseMessage.EnsureSuccessStatusCode();
 
