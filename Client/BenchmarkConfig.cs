@@ -6,11 +6,9 @@ namespace CosmosBenchmark
 {
     using System;
     using System.Collections.Generic;
-    using System.Diagnostics;
     using System.IO;
     using System.Linq;
     using System.Runtime;
-    using System.Runtime.CompilerServices;
     using CommandLine;
 
     public class WorkloadTypeConfig
@@ -18,8 +16,14 @@ namespace CosmosBenchmark
         [Option('w', Required = true, HelpText = "Http11, DotnetHttp2, ReactorHttp2, Grpc, Tcp")]
         public string WorkloadType { get; set; }
 
-        [Option('e', Required = false, HelpText = "Endpoint IP address")]
+        [Option('e', Required = true, HelpText = "Endpoint IP address")]
         public string Endpoint { get; set; }
+
+        [Option('c', Required = true, HelpText = "Concurrency")]
+        public int Parallism { get; set; }
+
+        [Option("mcpe", Required = true, HelpText = "Max connections per endpoint")]
+        public int MaxConnectionsPerEndpoint { get; set; }
 
         internal static BenchmarkConfig From(string[] args)
         {
@@ -56,6 +60,9 @@ namespace CosmosBenchmark
                 config.EndPoint = string.Format($"{defaultEndpoint.Scheme}://{options.Endpoint}:{defaultEndpoint.Port}");
             }
 
+            config.MaxConnectionsPerEndpoint = options.MaxConnectionsPerEndpoint;
+            config.DegreeOfParallelism = options.Parallism;
+
             return config;
         }
     }
@@ -80,7 +87,7 @@ namespace CosmosBenchmark
         [Option("pl", Required = true, HelpText = "Degree of parallism")]
         public int DegreeOfParallelism { get; set; }
 
-        public int MaxConnectionsPerEndpoint { get; set; } = 1;
+        public int MaxConnectionsPerEndpoint { get; set; }
 
         [Option(Required = false, HelpText = "Item template")]
         public string ItemTemplateFile { get; set; } = "Player.json";
