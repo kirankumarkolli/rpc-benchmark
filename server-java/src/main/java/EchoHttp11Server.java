@@ -24,7 +24,6 @@ public class EchoHttp11Server extends EchoServerBase {
     public void Start(int port) throws CertificateException, SSLException {
         SelfSignedCertificate ssc = new SelfSignedCertificate("localhost");
         SslContext sslCtx = SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey())
-//                .startTls(true)
                 .build();
 
         server = HttpServer.create()
@@ -39,13 +38,6 @@ public class EchoHttp11Server extends EchoServerBase {
                         .get("/dbs/{dbname}",
                                 (request, response) ->  Utils.OKResponseWithJsonBody(response, Utils.testJsonPayload));
                 })
-                //.wiretap(true)
-//                .doOnConnection(connection ->
-//                {
-//                    if (logger.isWarnEnabled()) {
-//                        logger.warn("[cid: 0x{}] OnConnection for: {}", connection.channel().id(), connection.address());
-//                    }
-//                })
                 .doOnChannelInit(new ChannelPipelineConfigurer() {
                     @Override
                     public void onChannelInit(ConnectionObserver connectionObserver, Channel channel, SocketAddress socketAddress) {

@@ -61,6 +61,8 @@ namespace CosmosBenchmark
         [Option("pl", Required = true, HelpText = "Degree of parallism")]
         public int DegreeOfParallelism { get; set; }
 
+        public int MaxConnectionsPerEndpoint { get; set; } = 1;
+
         [Option(Required = false, HelpText = "Item template")]
         public string ItemTemplateFile { get; set; } = "Player.json";
 
@@ -121,7 +123,7 @@ namespace CosmosBenchmark
 
         virtual internal int MaxConnectionsPerServer()
         {
-            return 1; //this.DegreeOfParallelism;
+            return this.MaxConnectionsPerEndpoint;
         }
 
         virtual internal Uri RequestBaseUri()

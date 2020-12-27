@@ -23,7 +23,6 @@ public class EchoHttp20Server extends EchoServerBase {
     public void Start(int port) throws CertificateException, SSLException {
         SelfSignedCertificate ssc = new SelfSignedCertificate();
         SslContext sslCtx = SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey())
-//                .startTls(true)
                 .ciphers(Http2SecurityUtil.CIPHERS, SupportedCipherSuiteFilter.INSTANCE)
                 .applicationProtocolConfig(
                         new ApplicationProtocolConfig(ApplicationProtocolConfig.Protocol.ALPN,
@@ -37,18 +36,11 @@ public class EchoHttp20Server extends EchoServerBase {
                 .port(port)
                 .protocol(HttpProtocol.H2)
                 .secure(spec -> spec.sslContext(sslCtx))
-                .http2Settings(settings -> settings.maxConcurrentStreams(5))
-//                .handle((request, response) -> Utils.OKResponseWithJsonBody(response, Utils.testJsonPayload))
+//                .http2Settings(settings -> settings.maxConcurrentStreams(5))
                 .route(routes -> {
                     routes.get("/dbs/{dbname}",
                         (request, response) ->  Utils.OKResponseWithJsonBody(response, Utils.testJsonPayload));
                 })
-//                .doOnConnection(connection ->
-//                {
-//                    if (logger.isInfoEnabled()) {
-//                        logger.warn("[cid: 0x{}] OnConnection for: {}", connection.channel().id(), connection.address());
-//                    }
-//                })
                 .doOnChannelInit(new ChannelPipelineConfigurer() {
                     @Override
                     public void onChannelInit(ConnectionObserver connectionObserver, Channel channel, SocketAddress socketAddress) {
