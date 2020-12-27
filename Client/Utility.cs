@@ -91,6 +91,7 @@ namespace CosmosBenchmark
             return new SocketsHttpHandler()
             {
                 MaxConnectionsPerServer = maxConnectionsPerServer,
+                EnableMultipleHttp2Connections = true,
                 SslOptions = new SslClientAuthenticationOptions()
                 {
                     RemoteCertificateValidationCallback =
