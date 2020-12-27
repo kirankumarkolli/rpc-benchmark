@@ -10,6 +10,7 @@ namespace CosmosBenchmark
     using System.IO;
     using System.Linq;
     using System.Runtime;
+    using System.Runtime.CompilerServices;
     using CommandLine;
 
     public class WorkloadTypeConfig
@@ -17,27 +18,45 @@ namespace CosmosBenchmark
         [Option('w', Required = true, HelpText = "Http11, DotnetHttp2, ReactorHttp2, Grpc, Tcp")]
         public string WorkloadType { get; set; }
 
+        [Option('e', Required = false, HelpText = "Endpoint IP address")]
+        public string Endpoint { get; set; }
+
         internal static BenchmarkConfig From(string[] args)
         {
             WorkloadTypeConfig options = null;
             Parser.Default.ParseArguments<WorkloadTypeConfig>(args)
                 .WithParsed<WorkloadTypeConfig>(e => options = e);
 
+            BenchmarkConfig config = null;
             switch (options.WorkloadType)
             {
                 case "Http11":
-                    return new DotnetHttp11EndpointConfig();
+                    config = new DotnetHttp11EndpointConfig();
+                    break;
                 case "DotnetHttp2":
-                    return new DotnetHttp2EndpointConfig();
+                    config = new DotnetHttp2EndpointConfig();
+                    break;
                 case "Grpc":
-                    return new GrpcEndpointConfig();
+                    config = new GrpcEndpointConfig();
+                    break;
                 case "ReactorHttp2":
-                    return new ReactorHttp2EndpointConfig();
+                    config = new ReactorHttp2EndpointConfig();
+                    break;
                 case "Tcp":
-                    return new TcpServerEndpointConfig();
+                    config = new TcpServerEndpointConfig();
+                    break;
                 default:
                     throw new NotImplementedException();
             }
+
+            // Patch the endpoint
+            if (string.IsNullOrWhiteSpace(options.Endpoint))
+            {
+                Uri defaultEndpoint = new Uri(config.EndPoint);
+                string patchedEndpoint = string.Format($"{defaultEndpoint.Scheme}://{options.Endpoint}:{defaultEndpoint.Port}");
+            }
+
+            return config;
         }
     }
 
