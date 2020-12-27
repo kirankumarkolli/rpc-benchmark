@@ -50,10 +50,10 @@ namespace CosmosBenchmark
             }
 
             // Patch the endpoint
-            if (string.IsNullOrWhiteSpace(options.Endpoint))
+            if (!string.IsNullOrWhiteSpace(options.Endpoint))
             {
                 Uri defaultEndpoint = new Uri(config.EndPoint);
-                string patchedEndpoint = string.Format($"{defaultEndpoint.Scheme}://{options.Endpoint}:{defaultEndpoint.Port}");
+                config.EndPoint = string.Format($"{defaultEndpoint.Scheme}://{options.Endpoint}:{defaultEndpoint.Port}");
             }
 
             return config;
