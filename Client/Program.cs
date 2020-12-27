@@ -5,7 +5,6 @@
 namespace CosmosBenchmark
 {
     using System;
-    using System.IO;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
@@ -13,7 +12,6 @@ namespace CosmosBenchmark
     using System.Reflection;
     using System.Diagnostics;
     using System.Net;
-    using Microsoft.Azure.Cosmos;
 
     /// <summary>
     /// This sample demonstrates how to achieve high performance writes using Azure Comsos DB.
@@ -31,7 +29,7 @@ namespace CosmosBenchmark
                 ServicePointManager.UseNagleAlgorithm = false;
                 ServicePointManager.ReusePort = true;
 
-                BenchmarkConfig config = BenchmarkConfig.From(args);
+                BenchmarkConfig config = WorkloadTypeConfig.From(args);
                 ThreadPool.SetMinThreads(config.DegreeOfParallelism, config.DegreeOfParallelism);
 
                 if (config.EnableLatencyPercentiles)

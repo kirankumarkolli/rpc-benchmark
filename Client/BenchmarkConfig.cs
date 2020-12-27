@@ -10,8 +10,36 @@ namespace CosmosBenchmark
     using System.IO;
     using System.Linq;
     using System.Runtime;
-    using System.Runtime.CompilerServices;
     using CommandLine;
+
+    public class WorkloadTypeConfig
+    {
+        [Option('w', Required = true, HelpText = "Http11, DotnetHttp2, ReactorHttp2, Grpc, Tcp")]
+        public string WorkloadType { get; set; }
+
+        internal static BenchmarkConfig From(string[] args)
+        {
+            WorkloadTypeConfig options = null;
+            Parser.Default.ParseArguments<WorkloadTypeConfig>(args)
+                .WithParsed<WorkloadTypeConfig>(e => options = e);
+
+            switch (options.WorkloadType)
+            {
+                case "Http11":
+                    return new DotnetHttp11EndpointConfig();
+                case "DotnetHttp2":
+                    return new DotnetHttp2EndpointConfig();
+                case "Grpc":
+                    return new GrpcEndpointConfig();
+                case "ReactorHttp2":
+                    return new ReactorHttp2EndpointConfig();
+                case "Tcp":
+                    return new TcpServerEndpointConfig();
+                default:
+                    throw new NotImplementedException();
+            }
+        }
+    }
 
     public class BenchmarkConfig
     {
@@ -25,7 +53,7 @@ namespace CosmosBenchmark
         public int IterationCount { get; set; }
 
         [Option(Required = false, HelpText = "Enable latency percentiles")]
-        public bool EnableLatencyPercentiles { get; set; }
+        public bool EnableLatencyPercentiles { get; set; } = true;
 
         [Option(Required = false, HelpText = "Container partition key path")]
         public string PartitionKeyPath { get; set; } = "/partitionKey";
@@ -57,13 +85,12 @@ namespace CosmosBenchmark
             }
         }
 
-        internal static bool UsePostManTarget { get; set; } = Debugger.IsAttached;
+        internal static bool DebuggerStartedConfig { get; set; } = true; // Debugger.IsAttached;
         internal static BenchmarkConfig From(string[] args)
         {
-            if (BenchmarkConfig.UsePostManTarget)
+            if (BenchmarkConfig.DebuggerStartedConfig)
             {
-                return new PostManTestEndpointConfig();
-
+                return new DotnetHttp2EndpointConfig();
             }
 
             BenchmarkConfig options = null;
@@ -94,31 +121,114 @@ namespace CosmosBenchmark
 
         virtual internal int MaxConnectionsPerServer()
         {
-            return this.DegreeOfParallelism;
+            return 1; //this.DegreeOfParallelism;
         }
 
         virtual internal Uri RequestBaseUri()
         {
-            return new Uri($"{this.EndPoint.TrimEnd('/')}/dbs/{this.Database}/cols/{this.Container}");
+            // return new Uri($"{this.EndPoint.TrimEnd('/')}/dbs/{this.Database}/cols/{this.Container}");
+            return new Uri($"{this.EndPoint.TrimEnd('/')}/dbs/");
         }
     }
 
-    internal class PostManTestEndpointConfig : BenchmarkConfig
+    internal class TcpServerEndpointConfig : BenchmarkConfig
     {
-        public PostManTestEndpointConfig()
+        public TcpServerEndpointConfig()
         {
-            this.DegreeOfParallelism = 1;
-            this.EndPoint = "https://postman-echo.com/";
-            this.IterationCount = 100;
-            this.WorkloadType = "Echo11Server";
+            this.DegreeOfParallelism = 5;
+            //this.EndPoint = "https://postman-echo.com/get?foo1=bar1&foo2=bar2";
+            this.EndPoint = "https://localhost:8082/";
+            this.IterationCount = 1000000;
+            this.WorkloadType = "TcpServer";
             this.Database = "db1";
             this.Container = "col1";
+            this.EnableLatencyPercentiles = true;
         }
 
         internal override Uri RequestBaseUri()
         {
-            return new Uri(this.EndPoint + "post");
+            //return new Uri(this.EndPoint);
+            return new Uri($"{this.EndPoint.TrimEnd('/')}/dbs/");
         }
     }
 
+    internal class GrpcEndpointConfig : BenchmarkConfig
+    {
+        public GrpcEndpointConfig()
+        {
+            this.DegreeOfParallelism = 5;
+            this.EndPoint = "https://localhost:8083/";
+            this.IterationCount = 1000000;
+            this.WorkloadType = "Grpc";
+            this.Database = "db1";
+            this.Container = "col1";
+            this.EnableLatencyPercentiles = true;
+        }
+
+        internal override Uri RequestBaseUri()
+        {
+            //return new Uri(this.EndPoint);
+            return new Uri($"{this.EndPoint.TrimEnd('/')}/dbs/");
+        }
+    }
+
+    internal class DotnetHttp11EndpointConfig : BenchmarkConfig
+    {
+        public DotnetHttp11EndpointConfig()
+        {
+            this.DegreeOfParallelism = 5;
+            //this.EndPoint = "https://postman-echo.com/get?foo1=bar1&foo2=bar2";
+            this.EndPoint = "https://localhost:8080/";
+            this.IterationCount = 1000000;
+            this.WorkloadType = "Echo11Server"; 
+            this.Database = "db1";
+            this.Container = "col1";
+            this.EnableLatencyPercentiles = true;
+        }
+
+        internal override Uri RequestBaseUri()
+        {
+            //return new Uri(this.EndPoint);
+            return new Uri($"{this.EndPoint.TrimEnd('/')}/dbs/");
+        }
+    }
+
+    internal class ReactorHttp2EndpointConfig : BenchmarkConfig
+    {
+        public ReactorHttp2EndpointConfig()
+        {
+            this.DegreeOfParallelism = 5;
+            this.EndPoint = "https://localhost:8081/";
+            this.IterationCount = 1000000;
+            this.WorkloadType = "Echo20Server"; ;
+            this.Database = "db1";
+            this.Container = "col1";
+            this.EnableLatencyPercentiles = true;
+        }
+
+        internal override Uri RequestBaseUri()
+        {
+            //return new Uri(this.EndPoint);
+            return new Uri($"{this.EndPoint.TrimEnd('/')}/dbs/");
+        }
+    }
+
+    internal class DotnetHttp2EndpointConfig : BenchmarkConfig
+    {
+        public DotnetHttp2EndpointConfig()
+        {
+            this.DegreeOfParallelism = 5;
+            this.EndPoint = "https://localhost:8091/";
+            this.IterationCount = 1000000;
+            this.WorkloadType = "Echo20Server"; ;
+            this.Database = "db1";
+            this.Container = "col1";
+            this.EnableLatencyPercentiles = true;
+        }
+
+        internal override Uri RequestBaseUri()
+        {
+            return new Uri($"{this.EndPoint.TrimEnd('/')}/dbs/");
+        }
+    }
 }
