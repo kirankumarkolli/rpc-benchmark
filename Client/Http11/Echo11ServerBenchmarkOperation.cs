@@ -42,6 +42,11 @@ namespace CosmosBenchmark
                                     .GetAsync(targetUri))
                     {
                         responseMessage.EnsureSuccessStatusCode();
+
+                        // Drain the response
+                        using (Stream payload = await responseMessage.Content.ReadAsStreamAsync())
+                        {
+                        }
                     }
                 }
             }
