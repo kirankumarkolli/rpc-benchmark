@@ -25,9 +25,9 @@ namespace GrpcService
                 {
                     options.Listen(IPAddress.Any, 8091, listenOptions =>
                     {
-                        listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
+                        listenOptions.Protocols = HttpProtocols.Http2;
                         listenOptions.UseHttps();
-
+                        listenOptions.KestrelServerOptions.Limits.Http2.MaxStreamsPerConnection = 2 * Environment.ProcessorCount;
                     });
                 })
                 .UseStartup<Http2Startup>()
