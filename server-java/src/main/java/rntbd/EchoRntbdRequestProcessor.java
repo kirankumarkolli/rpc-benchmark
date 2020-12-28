@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Processing incoming requests.
@@ -76,7 +77,8 @@ public final class EchoRntbdRequestProcessor extends ChannelDuplexHandler {
 
         // ReferenceCountUtil.safeRelease(message);
         context.fireChannelReadComplete();
-        ChannelFuture future = context.writeAndFlush(response);
+        final IRntbdResponse finalResponse = response;
+        context.executor().schedule(() -> context.writeAndFlush(finalResponse), 2, TimeUnit.MILLISECONDS);
     }
 
     @Override
