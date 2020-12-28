@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -17,6 +18,7 @@ import java.util.concurrent.TimeUnit;
  */
 public final class EchoRntbdRequestProcessor extends ChannelDuplexHandler {
     private final static Logger logger = LoggerFactory.getLogger(EchoRntbdRequestProcessor.class);
+    private final static Random randomLatency = new Random();
 
     public EchoRntbdRequestProcessor() {
         super();
@@ -78,7 +80,11 @@ public final class EchoRntbdRequestProcessor extends ChannelDuplexHandler {
         // ReferenceCountUtil.safeRelease(message);
         context.fireChannelReadComplete();
         final IRntbdResponse finalResponse = response;
-        context.executor().schedule(() -> context.writeAndFlush(finalResponse), 2, TimeUnit.MILLISECONDS);
+
+        int nextRandonLatency = randomLatency.nextInt(5);
+        context.executor().schedule(() -> context.writeAndFlush(finalResponse), nextRandonLatency, TimeUnit.MILLISECONDS);
+
+        logger.debug("Randomlatency {}", nextRandonLatency);
     }
 
     @Override
