@@ -3,12 +3,14 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.AspNetCore.Server.Kestrel.Https;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Primitives;
 
@@ -18,21 +20,32 @@ namespace GrpcService
     {
         public static void Main(string[] args)
         {
-            // CreateHostBuilder(args).Build().Run();
+            WorkloadTypeConfig config = WorkloadTypeConfig.From(args);
 
-            WebHost.CreateDefaultBuilder()
-                .ConfigureKestrel(options =>
-                {
-                    options.Listen(IPAddress.Any, 8091, listenOptions =>
-                    {
-                        listenOptions.Protocols = HttpProtocols.Http2;
-                        listenOptions.UseHttps();
-                        listenOptions.KestrelServerOptions.Limits.Http2.MaxStreamsPerConnection = 2 * Environment.ProcessorCount;
-                    });
-                })
-                .UseStartup<Http2Startup>()
-                .Build()
-                .Run();
+            switch (config.WorkloadType.ToLowerInvariant())
+            {
+                case "grps":
+                    CreateHostBuilder(args).Build().Run();
+                    break;
+                case "http2":
+                    WebHost.CreateDefaultBuilder()
+                        .ConfigureKestrel(options =>
+                        {
+                            options.ListenAnyIP(8091, listenOptions =>
+                            {
+                                listenOptions.Protocols = HttpProtocols.Http2;
+                                listenOptions.UseHttps();
+                                listenOptions.KestrelServerOptions.Limits.Http2.MaxStreamsPerConnection = 2 * Environment.ProcessorCount;
+
+                            });
+                        })
+                        .UseStartup<Http2Startup>()
+                        .Build()
+                        .Run();
+                    break;
+                default:
+                    throw new NotSupportedException();
+            }
         }
 
         public static IHostBuilder CreateHostBuilder(string[] args) =>
