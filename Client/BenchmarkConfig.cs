@@ -49,6 +49,9 @@ namespace CosmosBenchmark
                 case "Tcp":
                     config = new TcpServerEndpointConfig();
                     break;
+                case "Http3":
+                    config = new DotnetHttp3EndpointConfig();
+                    break;
                 default:
                     throw new NotImplementedException();
             }
@@ -249,6 +252,25 @@ namespace CosmosBenchmark
             this.EndPoint = "https://localhost:8091/";
             this.IterationCount = 1000000;
             this.WorkloadType = "Echo20Server"; ;
+            this.Database = "db1";
+            this.Container = "col1";
+            this.EnableLatencyPercentiles = true;
+        }
+
+        internal override Uri RequestBaseUri()
+        {
+            return new Uri($"{this.EndPoint.TrimEnd('/')}/dbs/");
+        }
+    }
+
+    internal class DotnetHttp3EndpointConfig : BenchmarkConfig
+    {
+        public DotnetHttp3EndpointConfig()
+        {
+            this.DegreeOfParallelism = 5;
+            this.EndPoint = "https://localhost:8093/";
+            this.IterationCount = 1000000;
+            this.WorkloadType = "Echo30Server";
             this.Database = "db1";
             this.Container = "col1";
             this.EnableLatencyPercentiles = true;
