@@ -4,6 +4,7 @@
 namespace CosmosBenchmark
 {
     using System;
+    using System.Collections.Generic;
     using System.Diagnostics;
     using System.Net;
     using System.Net.Http;
@@ -11,6 +12,7 @@ namespace CosmosBenchmark
     using System.Net.Security;
     using System.Security.Cryptography.X509Certificates;
     using Grpc.Net.Client;
+    using Grpc.Net.Compression;
     using Microsoft.Azure.Documents.Rntbd;
 
     internal static class Utility
@@ -77,7 +79,8 @@ namespace CosmosBenchmark
             return GrpcChannel.ForAddress(endPoint, 
                     new GrpcChannelOptions()
                     {
-                        HttpHandler = GetHttpMessageHandler(maxConnectionsPerServer)
+                        HttpHandler = GetHttpMessageHandler(maxConnectionsPerServer),
+                        // CompressionProviders = new List<ICompressionProvider>(),
                     });
         }
 
