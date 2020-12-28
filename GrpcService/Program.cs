@@ -1,33 +1,32 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net;
-using System.Security.Cryptography.X509Certificates;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Server.Kestrel.Core;
-using Microsoft.AspNetCore.Server.Kestrel.Https;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Primitives;
-
 namespace GrpcService
 {
+    using System;
+    using System.IO;
+    using System.Net;
+    using System.Security.Cryptography.X509Certificates;
+    using Microsoft.AspNetCore;
+    using Microsoft.AspNetCore.Builder;
+    using Microsoft.AspNetCore.Hosting;
+    using Microsoft.AspNetCore.Http;
+    using Microsoft.AspNetCore.Server.Kestrel.Core;
+    using Microsoft.AspNetCore.Server.Kestrel.Https;
+    using Microsoft.Extensions.Hosting;
+
     public class Program
     {
         public static void Main(string[] args)
         {
-            WorkloadTypeConfig config = WorkloadTypeConfig.From(args);
+            ServiceConfig config = ServiceConfig.From(args);
+            config.Print();
 
             switch (config.WorkloadType.ToLowerInvariant())
             {
-                case "grps":
+                case "grpc":
+                    Console.WriteLine("Starting gRPC server...");
                     CreateHostBuilder(args).Build().Run();
                     break;
                 case "http2":
+                    Console.WriteLine("Starting http2 server...");
                     WebHost.CreateDefaultBuilder()
                         .ConfigureKestrel(options =>
                         {
@@ -144,6 +143,5 @@ namespace GrpcService
                 });
             }
         }
-
     }
 }
