@@ -57,8 +57,11 @@ namespace Http11Kestral
                             context.Response.StatusCode = 400;
                         }
 
-                        await context.Response.WriteAsync($"{DateTime.UtcNow.ToString()} , Missing headers (auth={authHeaderValue.FirstOrDefault()}, date={dateHeaderValue.FirstOrDefault()})");
-                        return;
+                        if (context.Response.StatusCode == 400)
+                        {
+                            await context.Response.WriteAsync($"{DateTime.UtcNow.ToString()} , Missing headers (auth={authHeaderValue.FirstOrDefault()}, date={dateHeaderValue.FirstOrDefault()})");
+                            return;
+                        }
                     }
 
                     await context.Response.WriteAsync($"{DateTime.UtcNow.ToString()} GOOD TO GO!!");

@@ -1,0 +1,63 @@
+﻿variables:
+  loadCrankAgentEndpoint: http://localhost:5010
+  serverCrankAgentEndpoint: http://localhost:5010
+  serverPort: 8080
+  targetEndPoint: http://localhost:8080/dbs/db1/colls/c1/docs/d1
+  headers:
+    none: ''
+    plaintext: '--header "Accept: text/plain,text/html;q=0.9,application/xhtml+xml;q=0.9,application/xml;q=0.8,*/*;q=0.7" --header "Connection: keep-alive"'
+    html: '--header "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" --header "Connection: keep-alive"'
+    json: '--header "Accept: application/json,text/html;q=0.9,application/xhtml+xml;q=0.9,application/xml;q=0.8,*/*;q=0.7" --header "Connection: keep-alive"'
+    connectionclose: '--header "Connection: close"'
+  presetHeaders: none
+
+jobs:
+  bombardier:
+    source:
+      repository: https://github.com/dotnet/crank.git
+      branchOrCommit: main
+      project: src/Microsoft.Crank.Jobs.Bombardier/Microsoft.Crank.Jobs.Bombardier.csproj
+      sourceKey: bombardier
+      noBuild: true
+    readyStateText: Bombardier Client
+    waitForExit: true
+    variables:
+      connections: 256
+      warmup: 15
+      duration: 15
+      requests: 0
+      timeout: 2
+      rate: 0
+      transport: fasthttp # | http1 | http2
+      bodyFile: # path or url for a file to use as the body content
+      verb: GET # GET when nothing is specified
+      customHeaders: [ 'content-type: application/json', 'authorization: SOME-AUTH', 'x-ms-date: SOME-DATE' ] # list of headers with the format: '<name1>: <value1>', e.g. [ 'content-type: application/json' ]
+    arguments: "-c {{connections}} -w {{warmup}} -d {{duration}} -n {{requests}} -t {{timeout}}s --insecure -l {% if rate != 0 %} --rate {{ rate }} {% endif %} {% if transport %} --{{ transport}} {% endif %} {{headers[presetHeaders]}} {% for h in customHeaders %}{% assign s = h | split : ':' %}--header \"{{ s[0] }}: {{ s[1] | strip }}\" {% endfor %} {% if serverUri == blank or serverUri == empty %} {{targetEndPoint}} {% else %} {{targetEndPoint}} {% endif %} {% if bodyFile != blank and bodyFile != empty %} -f {{bodyFile}} {% endif %}  {% if verb != blank and verb != empty %} -m {{verb}} {% endif %}"
+    onConfigure: 
+      # - job.timeout = Number(job.variables.duration) + Number(job.variables.warmup) + 10;
+
+  server:
+    source:
+      localFolder: .
+      project: Http11Kestral.csproj
+    readyStateText: Application started.
+
+scenarios:
+  read:
+    application:
+      job: server
+      Port: 8080 # paramaterization only working for string TYPE
+    load:
+      job: bombardier
+      variables:
+        path: /dbs/db1/colls/c1/docs/d1
+
+profiles:
+  local:
+    jobs:
+      application:
+        endpoints:
+          - "{{ serverCrankAgentEndpoint }}"
+      load:
+        endpoints:
+          - "{{ loadCrankAgentEndpoint }}"
