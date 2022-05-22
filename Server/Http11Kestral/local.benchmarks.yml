@@ -31,8 +31,8 @@ jobs:
       transport: fasthttp # | http1 | http2
       bodyFile: # path or url for a file to use as the body content
       verb: GET # GET when nothing is specified
-      customHeaders: [ 'content-type: application/json', 'authorization: SOME-AUTH', 'x-ms-date: SOME-DATE' ] # list of headers with the format: '<name1>: <value1>', e.g. [ 'content-type: application/json' ]
-    arguments: "-c {{connections}} -w {{warmup}} -d {{duration}} -n {{requests}} -t {{timeout}}s --insecure -l {% if rate != 0 %} --rate {{ rate }} {% endif %} {% if transport %} --{{ transport}} {% endif %} {{headers[presetHeaders]}} {% for h in customHeaders %}{% assign s = h | split : ':' %}--header \"{{ s[0] }}: {{ s[1] | strip }}\" {% endfor %} {% if serverUri == blank or serverUri == empty %} {{targetEndPoint}} {% else %} {{targetEndPoint}} {% endif %} {% if bodyFile != blank and bodyFile != empty %} -f {{bodyFile}} {% endif %}  {% if verb != blank and verb != empty %} -m {{verb}} {% endif %}"
+      customHeaders: [ 'content-type: application/json', 'authorization:3XqgYAJ2jVF%2bJisxFng6NtPRujrPYTqeWVRSWc%2buxBs%3d', 'x-ms-date:Sun, 22 May 2022 18:02:40 GMT' ] # list of headers with the format: '<name1>: <value1>', e.g. [ 'content-type: application/json' ]
+    arguments: "-c {{connections}} -w {{warmup}} -d {{duration}} -n {{requests}} -t {{timeout}}s --insecure -l {% if rate != 0 %} --rate {{ rate }} {% endif %} {% if transport %} --{{ transport}} {% endif %} {{headers[presetHeaders]}} -H \"authorization:3XqgYAJ2jVF%2bJisxFng6NtPRujrPYTqeWVRSWc%2buxBs%3d\" -H \"x-ms-date:Sun, 22 May 2022 18:02:40 GMT\"  {% if serverUri == blank or serverUri == empty %} {{targetEndPoint}} {% else %} {{targetEndPoint}} {% endif %} {% if bodyFile != blank and bodyFile != empty %} -f {{bodyFile}} {% endif %}  {% if verb != blank and verb != empty %} -m {{verb}} {% endif %}"
     onConfigure: 
       # - job.timeout = Number(job.variables.duration) + Number(job.variables.warmup) + 10;
 
