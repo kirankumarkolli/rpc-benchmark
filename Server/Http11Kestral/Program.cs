@@ -80,7 +80,6 @@ namespace Http11Kestral
             return Host.CreateDefaultBuilder(args)
                .ConfigureWebHostDefaults(webBuilder =>
                     webBuilder.UseStartup<Startup>()
-                    .UseUrls("http://localhost:8080")
                     .UseKestrel()
                 );
         }
