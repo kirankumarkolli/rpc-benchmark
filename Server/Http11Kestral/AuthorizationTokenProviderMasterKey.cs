@@ -13,6 +13,13 @@ namespace Http11Kestral
 
     public sealed class AuthorizationTokenProviderMasterKey : AuthorizationTokenProvider
     {
+        private static string EmulatorKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
+
+        public static AuthorizationTokenProvider NewEmulatorAuthProvider()
+        {
+            return new AuthorizationTokenProviderMasterKey(AuthorizationTokenProviderMasterKey.EmulatorKey);
+        }
+
         ////The MAC signature found in the HTTP request is not the same as the computed signature.Server used following string to sign
         ////The input authorization token can't serve the request. Please check that the expected payload is built as per the protocol, and check the key being used. Server used the following payload to sign
         private readonly IComputeHash authKeyHashFunction;
@@ -30,8 +37,7 @@ namespace Http11Kestral
 
         public override string DocumentReadAuthorizationToken(
             string resourceId,
-            string xDate,
-            IComputeHash stringHMACSHA256Helper)
+            string xDate)
         {
             return this.GetUserAuthorizationAsync(
                 resourceId,

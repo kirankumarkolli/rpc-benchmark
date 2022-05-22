@@ -9,11 +9,9 @@ namespace Http11Kestral
 {
     public class Startup
     {
-        private static string emulatorKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
-
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddSingleton<AuthorizationTokenProvider>((sp) => new AuthorizationTokenProviderMasterKey(emulatorKey));
+            services.AddSingleton<AuthorizationTokenProvider>((sp) => AuthorizationTokenProviderMasterKey.NewEmulatorAuthProvider());
         }
 
         public void Configure(IApplicationBuilder app)

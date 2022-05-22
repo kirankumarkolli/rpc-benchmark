@@ -11,8 +11,7 @@ namespace Http11Kestral
     {
         public abstract string DocumentReadAuthorizationToken(
             string resourceId,
-            string xDate,
-            IComputeHash stringHMACSHA256Helper);
+            string xDate);
 
         public abstract string GetUserAuthorizationAsync(
             string resourceAddress,
