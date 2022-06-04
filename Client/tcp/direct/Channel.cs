@@ -116,6 +116,8 @@ namespace Microsoft.Azure.Documents.Rntbd
                     Trace.CorrelationManager.ActivityId = this.openArguments.CommonArguments.ActivityId;
                     await this.InitializeAsync();
                 });
+
+                this.initializationTask.Wait();
             }
             finally
             {

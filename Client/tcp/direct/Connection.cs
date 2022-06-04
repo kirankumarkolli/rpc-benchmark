@@ -264,7 +264,7 @@ namespace Microsoft.Azure.Documents.Rntbd
         {
             this.ThrowIfDisposed();
             await this.OpenSocketAsync(args);
-            await this.NegotiateSslAsync(args);
+            //await this.NegotiateSslAsync(args);
         }
 
         // This method is thread safe.
@@ -734,7 +734,7 @@ namespace Microsoft.Azure.Documents.Rntbd
 
             Connection.SetCommonSocketOptions(tcpClient.Client);
 
-            Connection.SetReuseUnicastPort(tcpClient.Client);
+            //Connection.SetReuseUnicastPort(tcpClient.Client);
 
             DefaultTrace.TraceInformation("RNTBD: {0} connecting to {1} (address {2})",
                 nameof(ConnectUnicastPortAsync), serverUri, resolvedAddress);

@@ -20,7 +20,7 @@ public class StateObject
 public class AsynchronousClient
 {
     // The port number for the remote device.  
-    private const int port = 11000;
+    private const int port = 8009;
 
     // ManualResetEvent instances signal completion.  
     private static ManualResetEvent connectDone =
@@ -41,60 +41,29 @@ public class AsynchronousClient
             // Establish the remote endpoint for the socket.  
             // The name of the
             // remote device is "host.contoso.com".  
-            IPHostEntry ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
-            IPAddress ipAddress = ipHostInfo.AddressList[0];
-            IPEndPoint remoteEP = new IPEndPoint(ipAddress, port);
+            IPEndPoint remoteEP = new IPEndPoint(IPAddress.Parse("127.0.0.1"), port);
 
-            // Create a TCP/IP socket.  
-            Socket client = new Socket(ipAddress.AddressFamily,
-                SocketType.Stream, ProtocolType.Tcp);
-
-            // Connect to the remote endpoint.  
-            client.BeginConnect(remoteEP,
-                new AsyncCallback(ConnectCallback), client);
-            connectDone.WaitOne();
-
-            // Send test data to the remote device.  
-            for (int i=0; i< 30; i++)
+            // Create a TCP/IP socket.
+            using (TcpClient tcpClient = new TcpClient(remoteEP.AddressFamily))
             {
-                Send(client, $"This is a test iteration {i} \n");
+                tcpClient.ConnectAsync(remoteEP.Address, port).Wait();
+                Socket client = tcpClient.Client;
+
+                // Send test data to the remote device.  
+                for (int i=0; i< 30; i++)
+                {
+                    Send(client, $"This is a test iteration {i} \n");
+                }
+                Send(client, "This is a test!!!! <EOF>");
+                sendDone.WaitOne();
+
+                // Receive the response from the remote device.  
+                Receive(client);
+                receiveDone.WaitOne();
+
+                // Write the response to the console.  
+                Console.WriteLine("Response received : {0}", response);
             }
-            Send(client, "This is a test!!!! <EOF>");
-            sendDone.WaitOne();
-
-            // Receive the response from the remote device.  
-            Receive(client);
-            receiveDone.WaitOne();
-
-            // Write the response to the console.  
-            Console.WriteLine("Response received : {0}", response);
-
-            // Release the socket.  
-            client.Shutdown(SocketShutdown.Both);
-            client.Close();
-
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine(e.ToString());
-        }
-    }
-
-    private static void ConnectCallback(IAsyncResult ar)
-    {
-        try
-        {
-            // Retrieve the socket from the state object.  
-            Socket client = (Socket)ar.AsyncState;
-
-            // Complete the connection.  
-            client.EndConnect(ar);
-
-            Console.WriteLine("Socket connected to {0}",
-                client.RemoteEndPoint.ToString());
-
-            // Signal that the connection has been made.  
-            connectDone.Set();
         }
         catch (Exception e)
         {
@@ -136,12 +105,16 @@ public class AsynchronousClient
             {
                 // There might be more data, so store the data received so far.  
                 state.sb.Append(Encoding.ASCII.GetString(state.buffer, 0, bytesRead));
+            }
 
+            if (bytesRead == StateObject.BufferSize)
+            { 
                 // Get the rest of the data.  
                 client.BeginReceive(state.buffer, 0, StateObject.BufferSize, 0,
                     new AsyncCallback(ReceiveCallback), state);
             }
-            else
+
+            if (bytesRead < StateObject.BufferSize)
             {
                 // All the data has arrived; put it in response.  
                 if (state.sb.Length > 1)
@@ -191,6 +164,9 @@ public class AsynchronousClient
     public static int Main(String[] args)
     {
         StartClient();
+
+        Console.WriteLine("Press ENTER");
+        Console.ReadLine();
         return 0;
     }
 }
