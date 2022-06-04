@@ -28,39 +28,12 @@ namespace KestrelTcpDemo
 
         public override async Task OnConnectedAsync(ConnectionContext connection)
         {
-            var input = connection.Transport.Input;
-
-            {
-                // EntbdContext negotiation
-                ReadResult readResult = await input.ReadAtLeastAsync(4);
-                var buffer = readResult.Buffer;
-                Debug.Assert(buffer.FirstSpan.Length >= 4);
-
-                uint length = BitConverter.ToUInt32(readResult.Buffer.FirstSpan.Slice(0, sizeof(UInt32)));
-
-                while (buffer.Length < length) // Read at-least length
-                {
-                    input.AdvanceTo(buffer.Start, readResult.Buffer.End);
-                }
-
-                // TODO: Incoming context validation 
-                // 16 <- Activity id (hard coded)
-                int connectionContextOffet = sizeof(UInt32) + sizeof(UInt16) + sizeof(UInt16) + 16;
-
-                BytesDeserializer reader = new BytesDeserializer(buffer.Slice(connectionContextOffet, length-connectionContextOffet).ToArray(), (int) length - connectionContextOffet);
-                RntbdConstants.ConnectionContextRequest request = new RntbdConstants.ConnectionContextRequest();
-                request.ParseFrom(ref reader);
-
-
-                // Send response 
-                byte[] responseMessage = RntbdConstants.ConnectionContextResponse.Serialize(200, Guid.NewGuid());
-                await connection.Transport.Output.WriteAsync(new Memory<byte>(responseMessage));
-            }
-
+            await NegotiateRntbdContext(connection);
 
             // Code to parse length prefixed encoding
             while (true)
             {
+                var input = connection.Transport.Input;
                 ReadResult readResult = await input.ReadAtLeastAsync(4);
                 var buffer = readResult.Buffer;
                 Debug.Assert(buffer.FirstSpan.Length >= 4);
@@ -80,6 +53,41 @@ namespace KestrelTcpDemo
 
                 input.AdvanceTo(buffer.Start, buffer.End);
             }
+        }
+
+        private static async Task NegotiateRntbdContext(ConnectionContext connection)
+        {
+            var input = connection.Transport.Input;
+
+            // RntbdContext negotiation
+            ReadResult readResult = await input.ReadAtLeastAsync(4);
+            var buffer = readResult.Buffer;
+            Debug.Assert(buffer.FirstSpan.Length >= 4);
+
+            int length = (int)BitConverter.ToUInt32(readResult.Buffer.FirstSpan.Slice(0, sizeof(UInt32)));
+
+            if (buffer.Length < length) // Read at-least length
+            {
+                input.AdvanceTo(buffer.Start, readResult.Buffer.End);
+                readResult = await input.ReadAtLeastAsync(length);
+            }
+
+            // TODO: Incoming context validation 
+            // 16 <- Activity id (hard coded)
+            int connectionContextOffet = sizeof(UInt32) + sizeof(UInt16) + sizeof(UInt16) + 16;
+
+            BytesDeserializer reader = new BytesDeserializer(buffer.Slice(connectionContextOffet, length - connectionContextOffet).ToArray(), length - connectionContextOffet);
+            RntbdConstants.ConnectionContextRequest request = new RntbdConstants.ConnectionContextRequest();
+            request.ParseFrom(ref reader);
+
+            // Mark the incoming message as consumed
+            // TODO: Test exception scenarios (i.e. if processing alter fails its impact)
+            input.AdvanceTo(buffer.GetPosition(length), readResult.Buffer.End);
+
+
+            // Send response 
+            byte[] responseMessage = RntbdConstants.ConnectionContextResponse.Serialize(200, Guid.NewGuid());
+            await connection.Transport.Output.WriteAsync(new Memory<byte>(responseMessage));
         }
 
         private async Task ProcessMessageAsync(
