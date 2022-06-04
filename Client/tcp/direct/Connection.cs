@@ -264,7 +264,7 @@ namespace Microsoft.Azure.Documents.Rntbd
         {
             this.ThrowIfDisposed();
             await this.OpenSocketAsync(args);
-            //await this.NegotiateSslAsync(args);
+            // await this.NegotiateSslAsync(args);
         }
 
         // This method is thread safe.

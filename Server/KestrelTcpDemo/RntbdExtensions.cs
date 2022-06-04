@@ -5,9 +5,11 @@ using System.Buffers;
 using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Net;
+using System.Security.Authentication;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Connections;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -45,7 +47,13 @@ namespace KestrelTcpDemo
             options.Listen(_options.EndPoint, builder =>
             {
                 builder.UseConnectionHandler<Rntbd2ConnectionHandler>();
+                //builder.UseHttps();
             });
+
+            //options.ConfigureHttpsDefaults(httpsOptions =>
+            //{
+            //    httpsOptions.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
+            //});
         }
 
         // The framework exposes options for how to bind

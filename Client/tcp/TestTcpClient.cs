@@ -43,7 +43,7 @@ namespace Microsoft.Azure.Cosmos
             {
                 Microsoft.Azure.Documents.StoreResponse storeResponse = await transportClient.InvokeStoreAsync(
                     //physicalAddress: new Uri("rnbd://cdb-ms-prod-eastus1-fd40.documents.azure.com:14364"),
-                    physicalAddress: new Uri("http://127.0.0.1:8009"),
+                    physicalAddress: new Uri("https://127.0.0.1:8009"),
                     resourceOperation: Microsoft.Azure.Documents.ResourceOperation.ReadDocument,
                     request: reqeust);
 
