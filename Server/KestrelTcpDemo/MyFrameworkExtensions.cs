@@ -19,7 +19,7 @@ namespace KestrelTcpDemo
     {
         public static IServiceCollection AddFramework(this IServiceCollection services, IPEndPoint endPoint)
         {
-            services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<KestrelServerOptions>, MyFrameworkOptionsSetup>());
+            services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<KestrelServerOptions>, Rntbd2OptionsSetup>());
 
             services.Configure<MyFrameworkOptions>(o =>
             {
@@ -31,11 +31,11 @@ namespace KestrelTcpDemo
         }
     }
 
-    public class MyFrameworkOptionsSetup : IConfigureOptions<KestrelServerOptions>
+    public class Rntbd2OptionsSetup : IConfigureOptions<KestrelServerOptions>
     {
         private readonly MyFrameworkOptions _options;
 
-        public MyFrameworkOptionsSetup(IOptions<MyFrameworkOptions> options)
+        public Rntbd2OptionsSetup(IOptions<MyFrameworkOptions> options)
         {
             _options = options.Value;
         }
@@ -44,16 +44,16 @@ namespace KestrelTcpDemo
         {
             options.Listen(_options.EndPoint, builder =>
             {
-                builder.UseConnectionHandler<MyFrameworkConnectionHandler>();
+                builder.UseConnectionHandler<Rntbd2ConnectionHandler>();
             });
         }
 
         // This is the connection handler the framework uses to handle new incoming connections
-        private class MyFrameworkConnectionHandler : ConnectionHandler
+        private class Rntbd2ConnectionHandler : ConnectionHandler
         {
             private readonly IFrameworkMessageParser _parser;
 
-            public MyFrameworkConnectionHandler(IFrameworkMessageParser parser)
+            public Rntbd2ConnectionHandler(IFrameworkMessageParser parser)
             {
                 _parser = parser;
             }
