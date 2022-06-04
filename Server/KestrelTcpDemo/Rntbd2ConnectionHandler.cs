@@ -53,31 +53,7 @@ namespace KestrelTcpDemo
 
 
                 // Send response 
-
-                //RntbdConstants.ConnectionContextHeadersResponse responseHeaders = new RntbdConstants.ConnectionContextHeadersResponse();
-                //responseHeaders.activityId.value.valueGuid = Guid.NewGuid();
-                //responseHeaders.activityId.isPresent = true;
-
-                //responseHeaders.statusCode.value.valueULong = 200;
-                //responseHeaders.statusCode.isPresent = true;
-
-
-                // TODO: Fill right values 
-                RntbdConstants.ConnectionContextResponse contextResponse = new RntbdConstants.ConnectionContextResponse();
-
-                contextResponse.protocolVersion.value.valueULong = RntbdConstants.CurrentProtocolVersion;
-                contextResponse.protocolVersion.isPresent = true;
-
-                contextResponse.serverVersion.value.valueBytes = HttpConstants.Versions.CurrentVersionUTF8;
-                contextResponse.serverVersion.isPresent = true;
-
-                contextResponse.clientVersion.value.valueBytes = HttpConstants.Versions.CurrentVersionUTF8;
-                contextResponse.clientVersion.isPresent = true;
-
-                contextResponse.serverAgent.value.valueBytes = Encoding.UTF8.GetBytes("RntbdServer");
-                contextResponse.serverAgent.isPresent = true;
-
-                byte[] responseMessage = contextResponse.Serialize(200, Guid.NewGuid());
+                byte[] responseMessage = RntbdConstants.ConnectionContextResponse.Serialize(200, Guid.NewGuid());
                 await connection.Transport.Output.WriteAsync(new Memory<byte>(responseMessage));
             }
 

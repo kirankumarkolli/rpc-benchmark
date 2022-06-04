@@ -6,6 +6,7 @@ namespace Microsoft.Azure.Documents
     using Microsoft.Azure.Cosmos.Rntbd;
     using System;
     using System.Collections.Concurrent;
+    using System.Text;
 
     internal static class RntbdConstants
     {
@@ -150,30 +151,6 @@ namespace Microsoft.Azure.Documents
             }
         }
 
-        public enum ConnectionContextHeadersResponseTokenIdentifiers : ushort
-        {
-            StatusCode = 0x0000,
-            ActiityId = 0x0001,
-        }
-
-        public sealed class ConnectionContextHeadersResponse : RntbdTokenStream<ConnectionContextHeadersResponseTokenIdentifiers>
-        {
-            public RntbdToken statusCode;
-            public RntbdToken activityId;
-
-            public ConnectionContextHeadersResponse()
-            {
-                this.statusCode = new RntbdToken(true, RntbdTokenTypes.ULong, (ushort)ConnectionContextHeadersResponseTokenIdentifiers.StatusCode);
-                this.activityId = new RntbdToken(true, RntbdTokenTypes.Guid, (ushort)ConnectionContextHeadersResponseTokenIdentifiers.ActiityId);
-
-                base.SetTokens(new RntbdToken[]
-                {
-                    this.statusCode,
-                    this.activityId,
-                });
-            }
-        }
-
         public enum ConnectionContextResponseTokenIdentifiers : ushort
         {
             ProtocolVersion = 0x0000,
@@ -213,18 +190,33 @@ namespace Microsoft.Azure.Documents
                 });
             }
 
-            public byte[] Serialize(UInt32 statusCode, Guid activityId)
+            public static byte[] Serialize(UInt32 statusCode, Guid activityId)
             {
+                // TODO: Fill right values 
+                RntbdConstants.ConnectionContextResponse contextResponse = new RntbdConstants.ConnectionContextResponse();
+                contextResponse.protocolVersion.value.valueULong = RntbdConstants.CurrentProtocolVersion;
+                contextResponse.protocolVersion.isPresent = true;
+
+                contextResponse.serverVersion.value.valueBytes = HttpConstants.Versions.CurrentVersionUTF8;
+                contextResponse.serverVersion.isPresent = true;
+
+                contextResponse.clientVersion.value.valueBytes = HttpConstants.Versions.CurrentVersionUTF8;
+                contextResponse.clientVersion.isPresent = true;
+
+                contextResponse.serverAgent.value.valueBytes = Encoding.UTF8.GetBytes("RntbdServer");
+                contextResponse.serverAgent.isPresent = true;
+
+
                 int responselength = sizeof(UInt32) + sizeof(UInt32) + 16;
-                responselength += this.CalculateLength();
+                responselength += contextResponse.CalculateLength();
                 byte[] responseMessage = new byte[responselength];
 
                 BytesSerializer writer = new BytesSerializer(responseMessage, responselength);
                 writer.Write(responselength);
-                writer.Write((UInt32)200);
-                writer.Write(Guid.NewGuid().ToByteArray());
+                writer.Write((UInt32)statusCode);
+                writer.Write(activityId.ToByteArray());
 
-                this.SerializeToBinaryWriter(ref writer, out _);
+                contextResponse.SerializeToBinaryWriter(ref writer, out _);
                 return responseMessage;
             }
         }
