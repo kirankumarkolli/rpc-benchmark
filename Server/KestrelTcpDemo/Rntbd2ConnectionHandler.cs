@@ -13,6 +13,7 @@ using Microsoft.Azure.Documents;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using static Microsoft.Azure.Documents.RntbdConstants;
 
 namespace KestrelTcpDemo
 {
@@ -36,24 +37,32 @@ namespace KestrelTcpDemo
                 (int length, ReadResult readResult) = await ReadLengthPrefixedMessageFull(connection);
                 var buffer = readResult.Buffer;
 
-                await ProcessMessageAsync(connection, buffer);
+                if (length != -1) // request already completed
+                {
+                    await ProcessMessageAsync(connection, buffer);
+                }
+
             }
         }
 
         private static async ValueTask<(int, ReadResult)> ReadLengthPrefixedMessageFull(ConnectionContext connection)
         {
             var input = connection.Transport.Input;
+            int length = -1;
 
             ReadResult readResult = await input.ReadAtLeastAsync(4);
             var buffer = readResult.Buffer;
-            Debug.Assert(buffer.FirstSpan.Length >= 4);
-
-            int length = (int)BitConverter.ToUInt32(readResult.Buffer.FirstSpan.Slice(0, sizeof(UInt32)));
-
-            if (buffer.Length < length) // Read at-least length
+            if (!readResult.IsCompleted)
             {
-                input.AdvanceTo(buffer.Start, readResult.Buffer.End);
-                readResult = await input.ReadAtLeastAsync(length);
+                Debug.Assert(buffer.FirstSpan.Length >= 4);
+
+                length = (int)BitConverter.ToUInt32(readResult.Buffer.FirstSpan.Slice(0, sizeof(UInt32)));
+
+                if (buffer.Length < length) // Read at-least length
+                {
+                    input.AdvanceTo(buffer.Start, readResult.Buffer.End);
+                    readResult = await input.ReadAtLeastAsync(length);
+                }
             }
 
             return (length, readResult);
@@ -86,6 +95,10 @@ namespace KestrelTcpDemo
             ConnectionContext connection,
             ReadOnlySequence<byte> buffer)
         {
+            BytesDeserializer reader = new BytesDeserializer(buffer.Slice(4, buffer.Length - 4).ToArray(), (int)buffer.Length - 4);
+            Request request = new Request();
+            request.ParseFrom(ref reader);
+
             foreach (var segment in buffer)
             {
                 await connection.Transport.Output.WriteAsync(segment);
