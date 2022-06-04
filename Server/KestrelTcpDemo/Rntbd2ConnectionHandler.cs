@@ -33,33 +33,17 @@ namespace KestrelTcpDemo
             // Code to parse length prefixed encoding
             while (true)
             {
-                var input = connection.Transport.Input;
-                ReadResult readResult = await input.ReadAtLeastAsync(4);
+                (int length, ReadResult readResult) = await ReadLengthPrefixedMessageFull(connection);
                 var buffer = readResult.Buffer;
-                Debug.Assert(buffer.FirstSpan.Length >= 4);
 
-                uint length = BitConverter.ToUInt32(readResult.Buffer.FirstSpan.Slice(0, sizeof(UInt32)));
-
-                while (buffer.Length < length) // Read at-least message
-                {
-                    input.AdvanceTo(buffer.Start, readResult.Buffer.End);
-                }
-
-
-                if (_parser.TryParseMessage(ref buffer, out var message))
-                {
-                    await ProcessMessageAsync(connection, buffer, message);
-                }
-
-                input.AdvanceTo(buffer.Start, buffer.End);
+                await ProcessMessageAsync(connection, buffer);
             }
         }
 
-        private static async Task NegotiateRntbdContext(ConnectionContext connection)
+        private static async ValueTask<(int, ReadResult)> ReadLengthPrefixedMessageFull(ConnectionContext connection)
         {
             var input = connection.Transport.Input;
 
-            // RntbdContext negotiation
             ReadResult readResult = await input.ReadAtLeastAsync(4);
             var buffer = readResult.Buffer;
             Debug.Assert(buffer.FirstSpan.Length >= 4);
@@ -72,6 +56,15 @@ namespace KestrelTcpDemo
                 readResult = await input.ReadAtLeastAsync(length);
             }
 
+            return (length, readResult);
+        }
+
+        private static async Task NegotiateRntbdContext(ConnectionContext connection)
+        {
+            // RntbdContext negotiation
+            (int length, ReadResult readResult) = await ReadLengthPrefixedMessageFull(connection);
+            var buffer = readResult.Buffer;
+
             // TODO: Incoming context validation 
             // 16 <- Activity id (hard coded)
             int connectionContextOffet = sizeof(UInt32) + sizeof(UInt16) + sizeof(UInt16) + 16;
@@ -82,8 +75,7 @@ namespace KestrelTcpDemo
 
             // Mark the incoming message as consumed
             // TODO: Test exception scenarios (i.e. if processing alter fails its impact)
-            input.AdvanceTo(buffer.GetPosition(length), readResult.Buffer.End);
-
+            connection.Transport.Input.AdvanceTo(buffer.GetPosition(length), readResult.Buffer.End);
 
             // Send response 
             byte[] responseMessage = RntbdConstants.ConnectionContextResponse.Serialize(200, Guid.NewGuid());
@@ -92,8 +84,7 @@ namespace KestrelTcpDemo
 
         private async Task ProcessMessageAsync(
             ConnectionContext connection,
-            ReadOnlySequence<byte> buffer,
-            RntbdMessage message)
+            ReadOnlySequence<byte> buffer)
         {
             foreach (var segment in buffer)
             {
