@@ -133,11 +133,46 @@ namespace KestrelTcpDemo
                 }
             }
 
+            Response response = new Response();
+            response.payloadPresent.value.valueByte = (byte)1; 
+            response.payloadPresent.isPresent = true;
 
-            foreach (var segment in buffer)
+            response.transportRequestID.value.valueULong = request.transportRequestID.value.valueULong;
+            response.transportRequestID.isPresent = true;
+
+            int totalResponselength = sizeof(UInt32) + sizeof(UInt32) + 16;
+            totalResponselength += response.CalculateLength();
+
+            Memory<byte> bytes = connection.Transport.Output.GetMemory(totalResponselength);
+            int serializedLength = Rntbd2ConnectionHandler.Serialize(totalResponselength, 200, operationId, response, testPayload, bytes);
+            connection.Transport.Output.Advance(serializedLength);
+
+            await connection.Transport.Output.FlushAsync();
+        }
+
+        internal static int Serialize<T>(
+            int totalResponselength,
+            uint statusCode,
+            Guid activityId,
+            RntbdTokenStream<T> contextResponse,
+            byte[] payload,
+            Memory<byte> bytes) where T : Enum
+        {
+            BytesSerializer writer = new BytesSerializer(bytes.Span);
+            writer.Write(totalResponselength);
+            writer.Write((UInt32)statusCode);
+            writer.Write(activityId.ToByteArray());
+
+            contextResponse.SerializeToBinaryWriter(ref writer, out _);
+            if (payload == null)
             {
-                await connection.Transport.Output.WriteAsync(segment);
+                return totalResponselength;
             }
+
+            writer.Write(payload.Length); // Interesting: **body lenth deviated from other length prefixing (doesn't includes length size)
+            writer.Write(payload);
+
+            return totalResponselength + sizeof(UInt32) + payload.Length;   
         }
     }
 }
