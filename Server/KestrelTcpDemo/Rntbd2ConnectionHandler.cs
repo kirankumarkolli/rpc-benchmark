@@ -35,18 +35,41 @@ namespace KestrelTcpDemo
 
         public override async Task OnConnectedAsync(ConnectionContext connection)
         {
-            await NegotiateRntbdContext(connection);
-
-            // Code to parse length prefixed encoding
-            while (true)
+            await using (connection)
             {
-                (int length, ReadResult readResult) = await ReadLengthPrefixedMessageFull(connection);
-                var buffer = readResult.Buffer;
-
-                if (length != -1) // request already completed
+                try
                 {
-                    await ProcessMessageAsync(connection, buffer.Slice(0, length));
-                    connection.Transport.Input.AdvanceTo(readResult.Buffer.GetPosition(length), readResult.Buffer.End);
+                    await NegotiateRntbdContext(connection);
+
+                    // Code to parse length prefixed encoding
+                    while (true)
+                    {
+                        (int length, ReadResult readResult) = await ReadLengthPrefixedMessageFull(connection);
+                        var buffer = readResult.Buffer;
+
+                        if (length != -1) // request already completed
+                        {
+                            int responseLength = await ProcessMessageAsync(connection, buffer.Slice(0, length));
+
+                            connection.Transport.Input.AdvanceTo(readResult.Buffer.GetPosition(length), readResult.Buffer.End);
+                        }
+                    }
+                }
+                catch (ConnectionResetException ex)
+                {
+                    Trace.TraceInformation(ex.ToString());
+                }
+                catch (InvalidOperationException ex) // Connection reset dring Read/Write
+                {
+                    Trace.TraceError(ex.ToString());
+                }
+                finally
+                {
+                    Trace.TraceWarning($"Connection {connection.ConnectionId} completed");
+
+                    // ConnectionContext.DisposeAsync() should take care of below
+                    //await connection.Transport.Input.CompleteAsync();
+                    //await connection.Transport.Output.CompleteAsync();
                 }
             }
         }
