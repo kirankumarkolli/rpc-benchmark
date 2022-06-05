@@ -209,21 +209,26 @@ namespace Microsoft.Azure.Documents
                 contextResponse.serverAgent.isPresent = true;
 
 
-                int responselength = sizeof(UInt32) + sizeof(UInt32) + 16;
-                responselength += contextResponse.CalculateLength();
+                int totalResponselength = sizeof(UInt32) + sizeof(UInt32) + 16;
+                totalResponselength += contextResponse.CalculateLength();
 
-                Memory<byte> bytes = pipeWriter.GetMemory(responselength);
+                Memory<byte> bytes = pipeWriter.GetMemory(totalResponselength);
 
-                Serialize(statusCode, activityId, contextResponse, responselength, bytes);
-                pipeWriter.Advance(responselength);
+                Serialize(totalResponselength, statusCode, activityId, contextResponse, bytes);
+                pipeWriter.Advance(totalResponselength);
 
                 await pipeWriter.FlushAsync();
             }
 
-            private static void Serialize(uint statusCode, Guid activityId, ConnectionContextResponse contextResponse, int responselength, Memory<byte> bytes)
+            internal static void Serialize<T>(
+                int totalResponselength, 
+                uint statusCode, 
+                Guid activityId, 
+                RntbdTokenStream<T> contextResponse, 
+                Memory<byte> bytes) where T : Enum
             {
                 BytesSerializer writer = new BytesSerializer(bytes.Span);
-                writer.Write(responselength);
+                writer.Write(totalResponselength);
                 writer.Write((UInt32)statusCode);
                 writer.Write(activityId.ToByteArray());
 
