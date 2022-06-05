@@ -26,6 +26,12 @@ namespace Microsoft.Azure.Cosmos.Rntbd
             this.position = 0;
         }
 
+        public BytesSerializer(Span<byte> targetByteArray)
+        {
+            this.targetByteArray = targetByteArray;
+            this.position = 0;
+        }
+
         public static Guid ReadGuidFromBytes(ArraySegment<byte> array)
         {
             Span<byte> activityIdSpan = new Span<byte>(array.Array, array.Offset, array.Count);

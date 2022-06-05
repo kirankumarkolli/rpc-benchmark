@@ -6,7 +6,9 @@ namespace Microsoft.Azure.Documents
     using Microsoft.Azure.Cosmos.Rntbd;
     using System;
     using System.Collections.Concurrent;
+    using System.IO.Pipelines;
     using System.Text;
+    using System.Threading.Tasks;
 
     internal static class RntbdConstants
     {
@@ -190,7 +192,7 @@ namespace Microsoft.Azure.Documents
                 });
             }
 
-            public static byte[] Serialize(UInt32 statusCode, Guid activityId)
+            public static async Task Serialize(UInt32 statusCode, Guid activityId, PipeWriter pipeWriter)
             {
                 // TODO: Fill right values 
                 RntbdConstants.ConnectionContextResponse contextResponse = new RntbdConstants.ConnectionContextResponse();
@@ -209,15 +211,23 @@ namespace Microsoft.Azure.Documents
 
                 int responselength = sizeof(UInt32) + sizeof(UInt32) + 16;
                 responselength += contextResponse.CalculateLength();
-                byte[] responseMessage = new byte[responselength];
 
-                BytesSerializer writer = new BytesSerializer(responseMessage, responselength);
+                Memory<byte> bytes = pipeWriter.GetMemory(responselength);
+
+                Serialize(statusCode, activityId, contextResponse, responselength, bytes);
+
+                FlushResult flushResult = await pipeWriter.WriteAsync(bytes);
+                pipeWriter.Advance(responselength);
+            }
+
+            private static void Serialize(uint statusCode, Guid activityId, ConnectionContextResponse contextResponse, int responselength, Memory<byte> bytes)
+            {
+                BytesSerializer writer = new BytesSerializer(bytes.Span);
                 writer.Write(responselength);
                 writer.Write((UInt32)statusCode);
                 writer.Write(activityId.ToByteArray());
 
                 contextResponse.SerializeToBinaryWriter(ref writer, out _);
-                return responseMessage;
             }
         }
 

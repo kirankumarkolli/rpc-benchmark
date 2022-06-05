@@ -87,8 +87,7 @@ namespace KestrelTcpDemo
             connection.Transport.Input.AdvanceTo(buffer.GetPosition(length), readResult.Buffer.End);
 
             // Send response 
-            byte[] responseMessage = RntbdConstants.ConnectionContextResponse.Serialize(200, Guid.NewGuid());
-            await connection.Transport.Output.WriteAsync(new Memory<byte>(responseMessage));
+            await RntbdConstants.ConnectionContextResponse.Serialize(200, Guid.NewGuid(), connection.Transport.Output);
         }
 
         private async Task ProcessMessageAsync(
