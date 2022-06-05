@@ -46,6 +46,7 @@ namespace KestrelTcpDemo
                 if (length != -1) // request already completed
                 {
                     await ProcessMessageAsync(connection, buffer.Slice(0, length));
+                    connection.Transport.Input.AdvanceTo(readResult.Buffer.GetPosition(length), readResult.Buffer.End);
                 }
             }
         }
