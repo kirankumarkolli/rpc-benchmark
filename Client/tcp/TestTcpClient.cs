@@ -36,18 +36,20 @@ namespace Microsoft.Azure.Cosmos
 
             string authKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
             AuthorizationTokenProviderMasterKey authProvider = new AuthorizationTokenProviderMasterKey(authKey);
+            IComputeHash authKeyHashFunction = new StringHMACSHA256Hash(authKey);
 
+            string resourceId = "dbs/db1/colls/col1/docs/item1";
             Documents.DocumentServiceRequest reqeust = Documents.DocumentServiceRequest.CreateFromName(
                     Documents.OperationType.Read,
-                    resourceFullName: "dbs/db1/colls/col1/docs/item1", // ResourceId
+                    resourceFullName: resourceId, // ResourceId
                     Documents.ResourceType.Document,
                     Documents.AuthorizationTokenType.PrimaryMasterKey);
 
-            //reqeust.Headers[Microsoft.Azure.Documents.HttpConstants.HttpHeaders.XDate] = DateTime.UtcNow.ToString("r", CultureInfo.InvariantCulture);
-            await authProvider.AddAuthorizationHeaderAsync(reqeust.Headers, 
-                new Uri("http://127.0.0.1/dbs/db1/colls/col1/docs/item1"), 
-                "GET", 
-                Documents.AuthorizationTokenType.PrimaryMasterKey);
+            string dateHeaderValue = DateTime.UtcNow.ToString("r", CultureInfo.InvariantCulture);
+            reqeust.Headers[Microsoft.Azure.Documents.HttpConstants.HttpHeaders.XDate] = dateHeaderValue;
+
+            string authorization = AuthorizationHelper.GenerateKeyAuthorizationCore("GET", dateHeaderValue, "docs", resourceId, authKeyHashFunction);
+            reqeust.Headers[Microsoft.Azure.Documents.HttpConstants.HttpHeaders.Authorization] = authorization;
 
             using (ActivityScope activityScope = new ActivityScope(Guid.NewGuid()))
             {

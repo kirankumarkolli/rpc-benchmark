@@ -525,6 +525,52 @@ namespace Microsoft.Azure.Cosmos
             return totalLength;
         }
 
+        public static int SerializeMessagePayload(
+               Span<byte> stream,
+               string verb,
+               string resourceId,
+               string resourceType,
+               string xDate)
+        {
+            // for name based, it is case sensitive, we won't use the lower case
+            if (!PathsHelper.IsNameBased(resourceId))
+            {
+                resourceId = resourceId.ToLowerInvariant();
+            }
+
+            int totalLength = 0;
+            int length = stream.Write(verb.ToLowerInvariant());
+            totalLength += length;
+            stream = stream.Slice(length);
+            length = stream.Write("\n");
+            totalLength += length;
+            stream = stream.Slice(length);
+            length = stream.Write(resourceType.ToLowerInvariant());
+            totalLength += length;
+            stream = stream.Slice(length);
+            length = stream.Write("\n");
+            totalLength += length;
+            stream = stream.Slice(length);
+            length = stream.Write(resourceId);
+            totalLength += length;
+            stream = stream.Slice(length);
+            length = stream.Write("\n");
+            totalLength += length;
+            stream = stream.Slice(length);
+            length = stream.Write(xDate.ToLowerInvariant());
+            totalLength += length;
+            stream = stream.Slice(length);
+            length = stream.Write("\n");
+            totalLength += length;
+            stream = stream.Slice(length);
+            length = stream.Write(string.Empty);
+            totalLength += length;
+            stream = stream.Slice(length);
+            length = stream.Write("\n");
+            totalLength += length;
+            return totalLength;
+        }
+
         public static bool IsResourceToken(string token)
         {
             int typeSeparatorPosition = token.IndexOf('&');
@@ -876,6 +922,56 @@ namespace Microsoft.Azure.Cosmos
                         headers);
 
                     byte[] hashPayLoad = hmacSha256.ComputeHash(arrayPoolBuffer, 0, length);
+                    return Convert.ToBase64String(hashPayLoad);
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(arrayPoolBuffer);
+                }
+            }
+        }
+
+        public static string GenerateKeyAuthorizationCore(
+            string verb,
+            string resourceId,
+            string resourceType,
+            string date,
+            IComputeHash computeHash)
+        {
+            // resourceId can be null for feed-read of /dbs
+            if (string.IsNullOrEmpty(verb))
+            {
+                throw new ArgumentException(RMResources.StringArgumentNullOrEmpty, nameof(verb));
+            }
+
+            if (resourceType == null)
+            {
+                throw new ArgumentNullException(nameof(resourceType)); // can be empty
+            }
+
+            {
+                // Order of the values included in the message payload is a protocol that clients/BE need to follow exactly.
+                // More headers can be added in the future.
+                // If any of the value is optional, it should still have the placeholder value of ""
+                // OperationType -> ResourceType -> ResourceId/OwnerId -> XDate -> Date
+                string verbInput = verb ?? string.Empty;
+                string resourceIdInput = resourceId ?? string.Empty;
+                string resourceTypeInput = resourceType ?? string.Empty;
+
+                string authResourceId = AuthorizationHelper.GetAuthorizationResourceIdOrFullName(resourceTypeInput, resourceIdInput);
+                int memoryStreamCapacity = AuthorizationHelper.ComputeMemoryCapacity(verbInput, authResourceId, resourceTypeInput);
+                byte[] arrayPoolBuffer = ArrayPool<byte>.Shared.Rent(memoryStreamCapacity);
+
+                try
+                {
+                    int length = AuthorizationHelper.SerializeMessagePayload(
+                        arrayPoolBuffer,
+                        verbInput,
+                        authResourceId,
+                        resourceTypeInput,
+                        date);
+
+                    byte[] hashPayLoad = computeHash.ComputeHash(new ArraySegment<byte>(arrayPoolBuffer, 0, length));
                     return Convert.ToBase64String(hashPayLoad);
                 }
                 finally
