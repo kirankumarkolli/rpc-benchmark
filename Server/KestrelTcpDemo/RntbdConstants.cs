@@ -215,9 +215,9 @@ namespace Microsoft.Azure.Documents
                 Memory<byte> bytes = pipeWriter.GetMemory(responselength);
 
                 Serialize(statusCode, activityId, contextResponse, responselength, bytes);
-
-                FlushResult flushResult = await pipeWriter.WriteAsync(bytes);
                 pipeWriter.Advance(responselength);
+
+                await pipeWriter.FlushAsync();
             }
 
             private static void Serialize(uint statusCode, Guid activityId, ConnectionContextResponse contextResponse, int responselength, Memory<byte> bytes)
