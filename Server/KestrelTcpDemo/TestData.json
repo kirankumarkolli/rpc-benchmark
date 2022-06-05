@@ -1,0 +1,29 @@
+﻿{
+  "id": "629d28c4e1dc69198c5b9fc2",
+  "index": 0,
+  "guid": "714f40be-6084-4cf1-aebc-9f58d5d9222d",
+  "isActive": false,
+  "balance": "$2,847.37",
+  "picture": "http://placehold.it/32x32",
+  "age": 23,
+  "eyeColor": "blue",
+  "name": "Whitehead Hoover",
+  "gender": "male",
+  "company": "ACRODANCE",
+  "email": "whiteheadhoover@acrodance.com",
+  "phone": "+1 (946) 596-3573",
+  "address": "436 Hendrix Street, Holtville, Guam, 2149",
+  "about": "Minim laborum aute sint aliquip magna tempor exercitation ad nulla veniam nostrud ullamco excepteur. Consectetur nostrud duis aliqua minim. Ad sit id proident fugiat duis sunt.\r\n",
+  "registered": "2017-03-18T09:04:36 +07:00",
+  "latitude": -11.663181,
+  "longitude": -138.804314,
+  "tags": [
+    "do",
+    "irure",
+    "et",
+    "cupidatat",
+    "cupidatat",
+    "anim",
+    "in"
+  ]
+}
