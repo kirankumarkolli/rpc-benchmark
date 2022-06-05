@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Cosmos.Rntbd;
 using Microsoft.Azure.Documents;
 using Microsoft.Extensions.DependencyInjection;
@@ -21,10 +22,13 @@ namespace KestrelTcpDemo
     internal class Rntbd2ConnectionHandler : ConnectionHandler
     {
         private readonly IRntbdMessageParser _parser;
+        private readonly IComputeHash computeHash;
+        private static readonly string AuthKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
 
         public Rntbd2ConnectionHandler(IRntbdMessageParser parser)
         {
             _parser = parser;
+            computeHash = new StringHMACSHA256Hash(Rntbd2ConnectionHandler.AuthKey);
         }
 
         public override async Task OnConnectedAsync(ConnectionContext connection)
@@ -39,9 +43,8 @@ namespace KestrelTcpDemo
 
                 if (length != -1) // request already completed
                 {
-                    await ProcessMessageAsync(connection, buffer);
+                    await ProcessMessageAsync(connection, buffer.Slice(0, length));
                 }
-
             }
         }
 
@@ -95,8 +98,38 @@ namespace KestrelTcpDemo
             ReadOnlySequence<byte> buffer)
         {
             BytesDeserializer reader = new BytesDeserializer(buffer.Slice(4, buffer.Length - 4).ToArray(), (int)buffer.Length - 4);
+
+            // Format: {ResourceType: 2}, {OperationType: 2}, {Guid: 16)
+            RntbdConstants.RntbdResourceType resourceType = (RntbdConstants.RntbdResourceType)reader.ReadUInt16();
+            RntbdConstants.RntbdOperationType operationType = (RntbdConstants.RntbdOperationType)reader.ReadUInt16();
+            Guid operationId = reader.ReadGuid();
+
+            // Read reqeust 
             Request request = new Request();
             request.ParseFrom(ref reader);
+
+            //if (request)
+            string dbName = BytesSerializer.GetStringFromBytes(request.databaseName.value.valueBytes);
+            string collectionName = BytesSerializer.GetStringFromBytes(request.collectionName.value.valueBytes);
+            string itemName = BytesSerializer.GetStringFromBytes(request.documentName.value.valueBytes);
+
+            string dateHeader = BytesSerializer.GetStringFromBytes(request.date.value.valueBytes);
+            string authHeaderValue = BytesSerializer.GetStringFromBytes(request.authorizationToken.value.valueBytes);
+
+            if (resourceType == RntbdResourceType.Document && operationType == RntbdOperationType.Read)
+            {
+                string authorization = AuthorizationHelper.GenerateKeyAuthorizationCore("GET", 
+                    dateHeader, 
+                    "docs", 
+                    String.Format($"dbs/{dbName}/colls/{collectionName}/docs/{itemName}"), 
+                    this.computeHash);
+                if (authorization != authHeaderValue)
+                {
+                    // TODO: Rntbd handling 
+                    throw new Exception("Unauthorized");
+                }
+            }
+
 
             foreach (var segment in buffer)
             {
