@@ -96,7 +96,7 @@ namespace KestrelTcpDemo
             await RntbdConstants.ConnectionContextResponse.Serialize(200, Guid.NewGuid(), connection.Transport.Output);
         }
 
-        private async Task ProcessMessageAsync(
+        private async Task<int> ProcessMessageAsync(
             ConnectionContext connection,
             ReadOnlySequence<byte> buffer)
         {
@@ -140,14 +140,18 @@ namespace KestrelTcpDemo
             response.transportRequestID.value.valueULong = request.transportRequestID.value.valueULong;
             response.transportRequestID.isPresent = true;
 
+            Trace.TraceError($"Processing {connection.ConnectionId} -> {request.transportRequestID.value.valueULong}");
+
             int totalResponselength = sizeof(UInt32) + sizeof(UInt32) + 16;
             totalResponselength += response.CalculateLength();
 
             Memory<byte> bytes = connection.Transport.Output.GetMemory(totalResponselength);
             int serializedLength = Rntbd2ConnectionHandler.Serialize(totalResponselength, 200, operationId, response, testPayload, bytes);
-            connection.Transport.Output.Advance(serializedLength);
 
+            connection.Transport.Output.Advance(serializedLength);
             await connection.Transport.Output.FlushAsync();
+
+            return serializedLength;
         }
 
         internal static int Serialize<T>(
