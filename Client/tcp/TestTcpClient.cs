@@ -34,33 +34,39 @@ namespace Microsoft.Azure.Cosmos
                     //ConnectionStateListener = this.connectionStateListener
                 });
 
-            string authKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
-            IComputeHash authKeyHashFunction = new StringHMACSHA256Hash(authKey);
-
-            string resourceId = "dbs/db1/colls/col1/docs/item1";
-            Documents.DocumentServiceRequest reqeust = Documents.DocumentServiceRequest.CreateFromName(
-                    Documents.OperationType.Read,
-                    resourceFullName: resourceId, // ResourceId
-                    Documents.ResourceType.Document,
-                    Documents.AuthorizationTokenType.PrimaryMasterKey);
-
-            string dateHeaderValue = DateTime.UtcNow.ToString("r", CultureInfo.InvariantCulture);
-            reqeust.Headers[Microsoft.Azure.Documents.HttpConstants.HttpHeaders.XDate] = dateHeaderValue;
-
-            string authorization = AuthorizationHelper.GenerateKeyAuthorizationCore("GET", dateHeaderValue, "docs", resourceId, authKeyHashFunction);
-            reqeust.Headers[Microsoft.Azure.Documents.HttpConstants.HttpHeaders.Authorization] = authorization;
-
-            using (ActivityScope activityScope = new ActivityScope(Guid.NewGuid()))
+            using (transportClient)
             {
-                Microsoft.Azure.Documents.StoreResponse storeResponse = await transportClient.InvokeStoreAsync(
-                    //physicalAddress: new Uri("rnbd://cdb-ms-prod-eastus1-fd40.documents.azure.com:14364"),
-                    physicalAddress: new Uri("http://127.0.0.1:8009/application/0749FECF-F6B0-41DC-8DB4-A19E214B1B0B/partition/4FCA2450-6D61-46A5-B971-0B1903204338/replica/6753AFE4-C375-4284-B70C-51910C16C902/"),
-                    resourceOperation: Microsoft.Azure.Documents.ResourceOperation.ReadDocument,
-                    request: reqeust);
+                string authKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
+                IComputeHash authKeyHashFunction = new StringHMACSHA256Hash(authKey);
 
-                if (storeResponse.StatusCode != System.Net.HttpStatusCode.OK)
+                string resourceId = "dbs/db1/colls/col1/docs/item1";
+                Documents.DocumentServiceRequest reqeust = Documents.DocumentServiceRequest.CreateFromName(
+                        Documents.OperationType.Read,
+                        resourceFullName: resourceId, // ResourceId
+                        Documents.ResourceType.Document,
+                        Documents.AuthorizationTokenType.PrimaryMasterKey);
+
+                string dateHeaderValue = DateTime.UtcNow.ToString("r", CultureInfo.InvariantCulture);
+                reqeust.Headers[Microsoft.Azure.Documents.HttpConstants.HttpHeaders.XDate] = dateHeaderValue;
+
+                string authorization = AuthorizationHelper.GenerateKeyAuthorizationCore("GET", dateHeaderValue, "docs", resourceId, authKeyHashFunction);
+                reqeust.Headers[Microsoft.Azure.Documents.HttpConstants.HttpHeaders.Authorization] = authorization;
+
+                for (int i = 0; i < 1000; i++)
                 {
-                    throw new Exception($"Unexpected status code {storeResponse.StatusCode}");
+                    using (ActivityScope activityScope = new ActivityScope(Guid.NewGuid()))
+                    {
+                        Microsoft.Azure.Documents.StoreResponse storeResponse = await transportClient.InvokeStoreAsync(
+                            //physicalAddress: new Uri("rnbd://cdb-ms-prod-eastus1-fd40.documents.azure.com:14364"),
+                            physicalAddress: new Uri("http://127.0.0.1:8009/application/0749FECF-F6B0-41DC-8DB4-A19E214B1B0B/partition/4FCA2450-6D61-46A5-B971-0B1903204338/replica/6753AFE4-C375-4284-B70C-51910C16C902/"),
+                            resourceOperation: Microsoft.Azure.Documents.ResourceOperation.ReadDocument,
+                            request: reqeust);
+
+                        if (storeResponse.StatusCode != System.Net.HttpStatusCode.OK)
+                        {
+                            throw new Exception($"Unexpected status code {storeResponse.StatusCode}");
+                        }
+                    }
                 }
             }
         }
