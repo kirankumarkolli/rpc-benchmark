@@ -35,7 +35,6 @@ namespace Microsoft.Azure.Cosmos
                 });
 
             string authKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
-            AuthorizationTokenProviderMasterKey authProvider = new AuthorizationTokenProviderMasterKey(authKey);
             IComputeHash authKeyHashFunction = new StringHMACSHA256Hash(authKey);
 
             string resourceId = "dbs/db1/colls/col1/docs/item1";
