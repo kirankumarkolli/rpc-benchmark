@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Azure.Documents.Rntbd;
@@ -33,17 +34,26 @@ namespace Microsoft.Azure.Cosmos
                     //ConnectionStateListener = this.connectionStateListener
                 });
 
+            string authKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
+            AuthorizationTokenProviderMasterKey authProvider = new AuthorizationTokenProviderMasterKey(authKey);
+
             Documents.DocumentServiceRequest reqeust = Documents.DocumentServiceRequest.CreateFromName(
                     Documents.OperationType.Read,
-                    "dbs/db1/col/col1/doc/item1", // ResourceId
+                    resourceFullName: "dbs/db1/colls/col1/docs/item1", // ResourceId
                     Documents.ResourceType.Document,
                     Documents.AuthorizationTokenType.PrimaryMasterKey);
+
+            //reqeust.Headers[Microsoft.Azure.Documents.HttpConstants.HttpHeaders.XDate] = DateTime.UtcNow.ToString("r", CultureInfo.InvariantCulture);
+            await authProvider.AddAuthorizationHeaderAsync(reqeust.Headers, 
+                new Uri("http://127.0.0.1/dbs/db1/colls/col1/docs/item1"), 
+                "GET", 
+                Documents.AuthorizationTokenType.PrimaryMasterKey);
 
             using (ActivityScope activityScope = new ActivityScope(Guid.NewGuid()))
             {
                 Microsoft.Azure.Documents.StoreResponse storeResponse = await transportClient.InvokeStoreAsync(
                     //physicalAddress: new Uri("rnbd://cdb-ms-prod-eastus1-fd40.documents.azure.com:14364"),
-                    physicalAddress: new Uri("https://127.0.0.1:8009"),
+                    physicalAddress: new Uri("http://127.0.0.1:8009/application/0749FECF-F6B0-41DC-8DB4-A19E214B1B0B/partition/4FCA2450-6D61-46A5-B971-0B1903204338/replica/6753AFE4-C375-4284-B70C-51910C16C902/"),
                     resourceOperation: Microsoft.Azure.Documents.ResourceOperation.ReadDocument,
                     request: reqeust);
 
