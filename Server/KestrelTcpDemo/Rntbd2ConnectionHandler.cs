@@ -188,6 +188,9 @@ namespace KestrelTcpDemo
             response.transportRequestID.value.valueULong = request.transportRequestID.value.valueULong;
             response.transportRequestID.isPresent = true;
 
+            response.requestCharge.value.valueDouble = 1.0;
+            response.requestCharge.isPresent = true;
+
             Trace.TraceError($"Processing {connection.ConnectionId} -> {request.transportRequestID.value.valueULong}");
 
             int totalResponselength = sizeof(UInt32) + sizeof(UInt32) + 16;
