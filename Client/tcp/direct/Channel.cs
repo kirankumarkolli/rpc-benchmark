@@ -405,7 +405,7 @@ namespace Microsoft.Azure.Documents.Rntbd
             Debug.Assert(!Monitor.IsEntered(this.stateLock));
             Debug.Assert(nextState == State.Open || nextState == State.Closed);
             Task initTask = null;
-            this.stateLock.EnterWriteLock();
+            //this.stateLock.EnterWriteLock();
             try
             {
                 // this.state might have become Closed if Dispose was already called.
@@ -418,7 +418,7 @@ namespace Microsoft.Azure.Documents.Rntbd
             }
             finally
             {
-                this.stateLock.ExitWriteLock();
+                //this.stateLock.ExitWriteLock();
             }
             if ((nextState == State.Closed) && (initTask != null))
             {
