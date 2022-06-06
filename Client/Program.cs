@@ -28,6 +28,8 @@ namespace CosmosBenchmark
         {
             try
             {
+                //AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
+
                 ServicePointManager.UseNagleAlgorithm = false;
                 ServicePointManager.ReusePort = true;
 
