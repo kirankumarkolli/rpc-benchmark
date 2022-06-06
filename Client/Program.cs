@@ -29,6 +29,7 @@ namespace CosmosBenchmark
             try
             {
                 //AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
+                AppContext.SetSwitch("System.Net.SocketsHttpHandler.Http3Support", true);
 
                 ServicePointManager.UseNagleAlgorithm = false;
                 ServicePointManager.ReusePort = true;
@@ -43,6 +44,9 @@ namespace CosmosBenchmark
                 }
 
                 config.Print();
+
+                //Echo30ServerBenchmarkOperation operation = new Echo30ServerBenchmarkOperation(config);
+                //await operation.ExecuteOnceAsync();
 
                 Program program = new Program();
                 RunSummary runSummary = await program.ExecuteAsync(config);

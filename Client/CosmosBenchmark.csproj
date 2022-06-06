@@ -9,6 +9,9 @@
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
     <DefineConstants>TRACE;COSMOSCLIENT</DefineConstants>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+	<!-- Http3 is in preview -->
+	<EnablePreviewFeatures>True</EnablePreviewFeatures>
   </PropertyGroup>
   <ItemGroup>
     <None Include="Player.json">
