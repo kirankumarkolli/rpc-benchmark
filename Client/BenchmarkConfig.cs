@@ -14,11 +14,8 @@ namespace CosmosBenchmark
 
     public class WorkloadTypeConfig
     {
-        [Option(shortName: 'w', longName: "WorkloadType", Required = true, HelpText = "Endpoint IP address")]
+        [Option(shortName: 'w', longName: "WorkloadType", Required = true, HelpText = "Workload types (DotNetHttp1, DotNetRntbd2, DotnetHttp2, Grpc, ReactorHttp2, Http3)")]
         public string WorkloadType { get; set; }
-
-        [Option(shortName: 'e', longName: "Endpoint", Required = true, HelpText = "Endpoint IP address")]
-        public string Endpoint { get; set; }
 
         [Option(shortName: 'c', longName: "Concurrency", Required = true, HelpText = "Concurrency")]
         public int Concurrency { get; set; }
@@ -36,20 +33,20 @@ namespace CosmosBenchmark
             BenchmarkConfig config = null;
             switch (options.WorkloadType)
             {
-                case "Http11":
+                case "DotNetHttp1":
                     config = new DotnetHttp11EndpointConfig();
                     break;
                 case "DotnetHttp2":
                     config = new DotnetHttp2EndpointConfig();
+                    break;
+                case "DotNetRntbd2":
+                    config = new TcpServerEndpointConfig();
                     break;
                 case "Grpc":
                     config = new GrpcEndpointConfig();
                     break;
                 case "ReactorHttp2":
                     config = new ReactorHttp2EndpointConfig();
-                    break;
-                case "DotNetRntbd2":
-                    config = new TcpServerEndpointConfig();
                     break;
                 case "Http3":
                     config = new DotnetHttp3EndpointConfig();
@@ -125,10 +122,9 @@ namespace CosmosBenchmark
             return this.MaxConnectionsPerEndpoint;
         }
 
-        virtual internal Uri RequestBaseUri()
+        internal virtual Uri RequestBaseUri()
         {
-            // return new Uri($"{this.EndPoint.TrimEnd('/')}/dbs/{this.Database}/cols/{this.Container}");
-            return new Uri($"{this.EndPoint.TrimEnd('/')}/dbs/");
+            return new Uri($"{this.EndPoint.TrimEnd('/')}/dbs/db1/colls/col1/docs/item1");
         }
     }
 
@@ -144,12 +140,6 @@ namespace CosmosBenchmark
             this.Container = "col1";
             this.EnableLatencyPercentiles = true;
         }
-
-        internal override Uri RequestBaseUri()
-        {
-            //return new Uri(this.EndPoint);
-            return new Uri($"{this.EndPoint.TrimEnd('/')}/dbs/");
-        }
     }
 
     internal class GrpcEndpointConfig : BenchmarkConfig
@@ -164,12 +154,6 @@ namespace CosmosBenchmark
             this.Container = "col1";
             this.EnableLatencyPercentiles = true;
         }
-
-        internal override Uri RequestBaseUri()
-        {
-            //return new Uri(this.EndPoint);
-            return new Uri($"{this.EndPoint.TrimEnd('/')}/dbs/");
-        }
     }
 
     internal class DotnetHttp11EndpointConfig : BenchmarkConfig
@@ -177,19 +161,12 @@ namespace CosmosBenchmark
         public DotnetHttp11EndpointConfig()
         {
             this.DegreeOfParallelism = 5;
-            //this.EndPoint = "https://postman-echo.com/get?foo1=bar1&foo2=bar2";
-            this.EndPoint = "https://localhost:8080/";
+            this.EndPoint = "http://localhost:7070/";
             this.IterationCount = 1000000;
             this.WorkloadType = "Echo11Server"; 
             this.Database = "db1";
             this.Container = "col1";
             this.EnableLatencyPercentiles = true;
-        }
-
-        internal override Uri RequestBaseUri()
-        {
-            //return new Uri(this.EndPoint);
-            return new Uri($"{this.EndPoint.TrimEnd('/')}/dbs/");
         }
     }
 
@@ -198,18 +175,12 @@ namespace CosmosBenchmark
         public ReactorHttp2EndpointConfig()
         {
             this.DegreeOfParallelism = 5;
-            this.EndPoint = "https://localhost:8081/";
+            this.EndPoint = "http://localhost:8080/";
             this.IterationCount = 1000000;
             this.WorkloadType = "Echo20Server"; ;
             this.Database = "db1";
             this.Container = "col1";
             this.EnableLatencyPercentiles = true;
-        }
-
-        internal override Uri RequestBaseUri()
-        {
-            //return new Uri(this.EndPoint);
-            return new Uri($"{this.EndPoint.TrimEnd('/')}/dbs/");
         }
     }
 
@@ -218,17 +189,12 @@ namespace CosmosBenchmark
         public DotnetHttp2EndpointConfig()
         {
             this.DegreeOfParallelism = 5;
-            this.EndPoint = "http://localhost:8091/";
+            this.EndPoint = "http://localhost:8080/";
             this.IterationCount = 1000000;
             this.WorkloadType = "Echo20Server"; ;
             this.Database = "db1";
             this.Container = "col1";
             this.EnableLatencyPercentiles = true;
-        }
-
-        internal override Uri RequestBaseUri()
-        {
-            return new Uri($"{this.EndPoint.TrimEnd('/')}/dbs/");
         }
     }
 
@@ -243,11 +209,6 @@ namespace CosmosBenchmark
             this.Database = "db1";
             this.Container = "col1";
             this.EnableLatencyPercentiles = true;
-        }
-
-        internal override Uri RequestBaseUri()
-        {
-            return new Uri($"{this.EndPoint.TrimEnd('/')}/dbs/");
         }
     }
 }
