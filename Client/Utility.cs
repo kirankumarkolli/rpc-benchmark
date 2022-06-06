@@ -34,19 +34,19 @@ namespace CosmosBenchmark
             return Utility.CreateHttpClient(maxConnectionsPerServer);
         }
 
-        public static HttpClient CreateHttp3Client(int maxConnectionsPerServer)
+        public static HttpClient CreateHttp2Client(int maxConnectionsPerServer)
         {
             HttpClient client = Utility.CreateHttpClient(maxConnectionsPerServer);
-            client.DefaultRequestVersion = new Version(3, 0);
+            client.DefaultRequestVersion = HttpVersion.Version20;
+            client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrHigher;
 
             return client;
         }
 
-        public static HttpClient CreateHttp2Client(int maxConnectionsPerServer)
+        public static HttpClient CreateHttp3Client(int maxConnectionsPerServer)
         {
-            // ref: https://github.com/dotnet/runtime/issues/987
             HttpClient client = Utility.CreateHttpClient(maxConnectionsPerServer);
-            client.DefaultRequestVersion = HttpVersion.Version20;
+            client.DefaultRequestVersion = new Version(3, 0);
             client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrHigher;
 
             return client;

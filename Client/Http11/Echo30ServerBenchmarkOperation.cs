@@ -4,16 +4,20 @@
 
 namespace CosmosBenchmark
 {
+    using Microsoft.Azure.Cosmos;
     using System;
     using System.Collections.Generic;
+    using System.Globalization;
     using System.IO;
+    using System.Net;
     using System.Net.Http;
     using System.Threading.Tasks;
 
     internal class Echo30ServerBenchmarkOperation : IBenchmarkOperation
     {
-        private static  HttpClient client;
+        private HttpClient client;
         private readonly string requestUri;
+        private IComputeHash authKeyHashFunction;
 
         private readonly string partitionKeyPath;
         private readonly Dictionary<string, object> sampleJObject;
@@ -25,21 +29,32 @@ namespace CosmosBenchmark
             this.requestUri = config.RequestBaseUri().ToString();
 
             this.sampleJObject = JsonHelper.Deserialize<Dictionary<string, object>>(config.ItemTemplatePayload());
-            if (Echo30ServerBenchmarkOperation.client == null)
-            {
-                Echo30ServerBenchmarkOperation.client = Utility.CreateHttp3Client(config.MaxConnectionsPerServer());
-            }
+            client = Utility.CreateHttp3Client(config.MaxConnectionsPerServer());
+
+            string authKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
+            authKeyHashFunction = new StringHMACSHA256Hash(authKey);
         }
 
         public async Task ExecuteOnceAsync()
         {
-            using (var req = new HttpRequestMessage(HttpMethod.Get, this.requestUri))
+            string targetUri = this.requestUri;
+            using (HttpRequestMessage httpRequest = new HttpRequestMessage(HttpMethod.Get, targetUri))
             {
-                req.Version = new Version(2, 0);
+                // ref: https://github.com/dotnet/runtime/issues/987
+                httpRequest.Version = new Version(3, 0);
+                httpRequest.VersionPolicy = HttpVersionPolicy.RequestVersionOrHigher;
 
-                using (HttpResponseMessage responseMessage = await Echo30ServerBenchmarkOperation.client
-                                        .GetAsync(this.requestUri + Guid.NewGuid().ToString(), 
-                                            HttpCompletionOption.ResponseHeadersRead))
+                string dateHeaderValue = DateTime.UtcNow.ToString("r", CultureInfo.InvariantCulture);
+                httpRequest.Headers.Add(Microsoft.Azure.Documents.HttpConstants.HttpHeaders.XDate, dateHeaderValue);
+
+                string authorization = AuthorizationHelper.GenerateKeyAuthorizationCore("GET",
+                    dateHeaderValue,
+                    "docs",
+                    httpRequest.RequestUri.AbsolutePath.TrimStart(new char[] { '/' }),
+                    authKeyHashFunction);
+                httpRequest.Headers.TryAddWithoutValidation(Microsoft.Azure.Documents.HttpConstants.HttpHeaders.Authorization, authorization);
+
+                using (HttpResponseMessage responseMessage = await client.SendAsync(httpRequest))
                 {
                     responseMessage.EnsureSuccessStatusCode();
 
