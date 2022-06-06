@@ -33,7 +33,7 @@ namespace CosmosBenchmark
             BenchmarkConfig config = null;
             switch (options.WorkloadType)
             {
-                case "DotNetHttp1":
+                case "DotnetHttp1":
                     config = new DotnetHttp11EndpointConfig();
                     break;
                 case "DotnetHttp2":
@@ -42,7 +42,7 @@ namespace CosmosBenchmark
                 case "DotnetHttp3":
                     config = new DotnetHttp3EndpointConfig();
                     break;
-                case "DotNetRntbd2":
+                case "DotnetRntbd2":
                     config = new TcpServerEndpointConfig();
                     break;
                 case "Grpc":
