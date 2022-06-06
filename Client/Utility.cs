@@ -31,7 +31,11 @@ namespace CosmosBenchmark
 
         public static HttpClient CreateHttp1Client(int maxConnectionsPerServer)
         {
-            return Utility.CreateHttpClient(maxConnectionsPerServer);
+            HttpClient client = Utility.CreateHttpClient(maxConnectionsPerServer);
+            client.DefaultRequestVersion = HttpVersion.Version11;
+            client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
+
+            return client;
         }
 
         public static HttpClient CreateHttp2Client(int maxConnectionsPerServer)
