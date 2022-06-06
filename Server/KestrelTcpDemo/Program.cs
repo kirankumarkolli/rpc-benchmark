@@ -12,6 +12,7 @@ namespace KestrelTcpDemo
         public static void Main(string[] args)
         {
             AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
+            AppContext.SetSwitch("System.Net.SocketsHttpHandler.Http3Support", true);
 
             CreateWebHostBuilder(args).Build().Run();
         }
