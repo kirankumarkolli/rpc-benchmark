@@ -7,9 +7,9 @@ namespace Microsoft.Azure.Cosmos.Rntbd
     using System;
     using System.Runtime.InteropServices;
 
-    internal struct BytesDeserializer
+    internal ref struct BytesDeserializer
     {
-        private readonly Memory<byte> metadata;
+        private readonly ReadOnlyMemory<byte> metadata;
 
         public BytesDeserializer(byte[] metadata, int length) : this()
         {

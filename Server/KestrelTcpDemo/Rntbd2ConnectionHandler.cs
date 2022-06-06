@@ -108,9 +108,9 @@ namespace KestrelTcpDemo
             // 16 <- Activity id (hard coded)
             int connectionContextOffet = sizeof(UInt32) + sizeof(UInt16) + sizeof(UInt16) + 16;
 
-            BytesDeserializer reader = new BytesDeserializer(buffer.Slice(connectionContextOffet, length - connectionContextOffet).ToArray(), length - connectionContextOffet);
+            byte[] deserializePayload = buffer.Slice(connectionContextOffet, length - connectionContextOffet).ToArray();
             RntbdConstants.ConnectionContextRequest request = new RntbdConstants.ConnectionContextRequest();
-            request.ParseFrom(ref reader);
+            Deserialize(deserializePayload, request);
 
             // Mark the incoming message as consumed
             // TODO: Test exception scenarios (i.e. if processing alter fails its impact)
@@ -120,20 +120,44 @@ namespace KestrelTcpDemo
             await RntbdConstants.ConnectionContextResponse.Serialize(200, Guid.NewGuid(), connection.Transport.Output);
         }
 
+        private static void Deserialize<T>(
+            byte[] deserializePayload, 
+            RntbdTokenStream<T> request) where T: Enum
+        {
+            BytesDeserializer reader = new BytesDeserializer(deserializePayload, deserializePayload.Length);
+            request.ParseFrom(ref reader);
+        }
+
+        private static void DeserializeReqeust<T>(
+            byte[] deserializePayload, 
+            out RntbdConstants.RntbdResourceType resourceType,
+            out RntbdConstants.RntbdOperationType operationType,
+            out Guid operationId,
+            RntbdTokenStream<T> request) where T : Enum
+        {
+            BytesDeserializer reader = new BytesDeserializer(deserializePayload, deserializePayload.Length);
+
+            // Format: {ResourceType: 2}, {OperationType: 2}, {Guid: 16)
+            resourceType = (RntbdConstants.RntbdResourceType)reader.ReadUInt16();
+            operationType = (RntbdConstants.RntbdOperationType)reader.ReadUInt16();
+            operationId = reader.ReadGuid();
+
+            request.ParseFrom(ref reader);
+        }
+
         private async Task<int> ProcessMessageAsync(
             ConnectionContext connection,
             ReadOnlySequence<byte> buffer)
         {
-            BytesDeserializer reader = new BytesDeserializer(buffer.Slice(4, buffer.Length - 4).ToArray(), (int)buffer.Length - 4);
+            // TODO: Avoid array materialization
+            byte[] deserializePayload = buffer.Slice(4, buffer.Length - 4).ToArray();
 
-            // Format: {ResourceType: 2}, {OperationType: 2}, {Guid: 16)
-            RntbdConstants.RntbdResourceType resourceType = (RntbdConstants.RntbdResourceType)reader.ReadUInt16();
-            RntbdConstants.RntbdOperationType operationType = (RntbdConstants.RntbdOperationType)reader.ReadUInt16();
-            Guid operationId = reader.ReadGuid();
-
-            // Read reqeust 
             Request request = new Request();
-            request.ParseFrom(ref reader);
+            DeserializeReqeust(deserializePayload,
+                out RntbdConstants.RntbdResourceType resourceType,
+                out RntbdConstants.RntbdOperationType operationType,
+                out Guid operationId,
+                request);
 
             //if (request)
             string dbName = BytesSerializer.GetStringFromBytes(request.databaseName.value.valueBytes);
