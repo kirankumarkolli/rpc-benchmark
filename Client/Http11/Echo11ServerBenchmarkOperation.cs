@@ -19,7 +19,6 @@ namespace CosmosBenchmark
         private IComputeHash authKeyHashFunction;
 
         private readonly string partitionKeyPath;
-        private readonly Dictionary<string, object> sampleJObject;
 
         public Echo11ServerBenchmarkOperation(BenchmarkConfig config)
         {
@@ -27,7 +26,6 @@ namespace CosmosBenchmark
 
             this.requestUri = config.RequestBaseUri().ToString();
 
-            this.sampleJObject = JsonHelper.Deserialize<Dictionary<string, object>>(config.ItemTemplatePayload());
             client = Utility.CreateHttp1Client(config.MaxConnectionsPerServer());
 
             string authKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
@@ -62,11 +60,6 @@ namespace CosmosBenchmark
 
         public Task PrepareAsync()
         {
-            string newPartitionKey = Guid.NewGuid().ToString();
-
-            this.sampleJObject["id"] = Guid.NewGuid().ToString();
-            this.sampleJObject[this.partitionKeyPath] = newPartitionKey;
-
             return Task.CompletedTask;
         }
     }
