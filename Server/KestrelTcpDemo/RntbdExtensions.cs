@@ -28,7 +28,6 @@ namespace KestrelTcpDemo
                 o.EndPoint = endPoint;
             });
 
-            services.TryAddSingleton<IRntbdMessageParser, RntbdMessageParser>();
             return services;
         }
     }
@@ -61,36 +60,5 @@ namespace KestrelTcpDemo
         {
             public IPEndPoint EndPoint { get; set; }
         }
-    }
-
-
-    // The framework exposes a message parser used to parse incoming protocol messages from the network
-    public interface IRntbdMessageParser
-    {
-        bool TryParseMessage(ref ReadOnlySequence<byte> buffer, out RntbdMessage message);
-    }
-
-    public class RntbdMessageParser : IRntbdMessageParser
-    {
-        public bool TryParseMessage(ref ReadOnlySequence<byte> buffer, out RntbdMessage message)
-        {
-            message = null;
-            string content = Encoding.ASCII.GetString(buffer.ToArray(), 0, (int)buffer.Length);
-
-            // Check for end-of-file tag. If it is not there, read
-            // more data.  
-            if (content.IndexOf("<EOF>") > -1)
-            {
-                message = new RntbdMessage();
-                return true;
-            }
-
-            return false;
-        }
-    }
-
-    public class RntbdMessage
-    {
-        // TODO: Add properties relevant to your message type here
     }
 }
