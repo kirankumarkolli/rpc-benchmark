@@ -131,47 +131,48 @@ namespace CosmosBenchmark
                 Console.WriteLine("--------------------------------------------------------------------- ");
                 lastSummary.Print(lastSummary.failedOpsCount + lastSummary.successfulOpsCount);
 
-                // Skip first 5 and last 5 counters as outliers
-                IEnumerable<int> exceptFirst5 = perLoopCounters.Skip(5);
-                int[] summaryCounters = exceptFirst5.Take(exceptFirst5.Count() - 5).OrderByDescending(e => e).ToArray();
+                Console.WriteLine($"#loop counters: {perLoopCounters.Count}");
+                int[] summaryCounters = perLoopCounters.OrderByDescending(e => e).ToArray();
 
                 RunSummary runSummary = new RunSummary();
 
-                if (summaryCounters.Length > 10)
+                Console.WriteLine();
+                Utility.TeeTraceInformation($"After Excluding outliers: {summaryCounters.First()} {summaryCounters.Last()}");
+
+                runSummary.Top10PercentAverageRps = Math.Round(summaryCounters.Take(GetPercent(0.1, summaryCounters.Length)).Average(), 0);
+                runSummary.Top20PercentAverageRps = Math.Round(summaryCounters.Take(GetPercent(0.2, summaryCounters.Length)).Average(), 0);
+                runSummary.Top30PercentAverageRps = Math.Round(summaryCounters.Take(GetPercent(0.3, summaryCounters.Length)).Average(), 0);
+                runSummary.Top40PercentAverageRps = Math.Round(summaryCounters.Take(GetPercent(0.4, summaryCounters.Length)).Average(), 0);
+                runSummary.Top50PercentAverageRps = Math.Round(summaryCounters.Take(GetPercent(0.5, summaryCounters.Length)).Average(), 0);
+                runSummary.Top60PercentAverageRps = Math.Round(summaryCounters.Take(GetPercent(0.6, summaryCounters.Length)).Average(), 0);
+                runSummary.Top70PercentAverageRps = Math.Round(summaryCounters.Take(GetPercent(0.7, summaryCounters.Length)).Average(), 0);
+                runSummary.Top80PercentAverageRps = Math.Round(summaryCounters.Take(GetPercent(0.8, summaryCounters.Length)).Average(), 0);
+                runSummary.Top90PercentAverageRps = Math.Round(summaryCounters.Take(GetPercent(0.9, summaryCounters.Length)).Average(), 0);
+                runSummary.Top95PercentAverageRps = Math.Round(summaryCounters.Take(GetPercent(0.95, summaryCounters.Length)).Average(), 0);
+                runSummary.AverageRps = Math.Round(summaryCounters.Average(), 0);
+
+                runSummary.Top50PercentLatencyInMs = TelemetrySpan.GetLatencyPercentile(50);
+                runSummary.Top75PercentLatencyInMs = TelemetrySpan.GetLatencyPercentile(75);
+                runSummary.Top90PercentLatencyInMs = TelemetrySpan.GetLatencyPercentile(90);
+                runSummary.Top95PercentLatencyInMs = TelemetrySpan.GetLatencyPercentile(95);
+                runSummary.Top99PercentLatencyInMs = TelemetrySpan.GetLatencyPercentile(99);
+
+                if (!bWarmpup)
                 {
-                    Console.WriteLine();
-                    Utility.TeeTraceInformation("After Excluding outliers");
-
-                    runSummary.Top10PercentAverageRps = Math.Round(summaryCounters.Take((int)(0.1 * summaryCounters.Length)).Average(), 0);
-                    runSummary.Top20PercentAverageRps = Math.Round(summaryCounters.Take((int)(0.2 * summaryCounters.Length)).Average(), 0);
-                    runSummary.Top30PercentAverageRps = Math.Round(summaryCounters.Take((int)(0.3 * summaryCounters.Length)).Average(), 0);
-                    runSummary.Top40PercentAverageRps = Math.Round(summaryCounters.Take((int)(0.4 * summaryCounters.Length)).Average(), 0);
-                    runSummary.Top50PercentAverageRps = Math.Round(summaryCounters.Take((int)(0.5 * summaryCounters.Length)).Average(), 0);
-                    runSummary.Top60PercentAverageRps = Math.Round(summaryCounters.Take((int)(0.6 * summaryCounters.Length)).Average(), 0);
-                    runSummary.Top70PercentAverageRps = Math.Round(summaryCounters.Take((int)(0.7 * summaryCounters.Length)).Average(), 0);
-                    runSummary.Top80PercentAverageRps = Math.Round(summaryCounters.Take((int)(0.8 * summaryCounters.Length)).Average(), 0);
-                    runSummary.Top90PercentAverageRps = Math.Round(summaryCounters.Take((int)(0.9 * summaryCounters.Length)).Average(), 0);
-                    runSummary.Top95PercentAverageRps = Math.Round(summaryCounters.Take((int)(0.95 * summaryCounters.Length)).Average(), 0);
-                    runSummary.AverageRps = Math.Round(summaryCounters.Average(), 0);
-
-                    runSummary.Top50PercentLatencyInMs = TelemetrySpan.GetLatencyPercentile(50);
-                    runSummary.Top75PercentLatencyInMs = TelemetrySpan.GetLatencyPercentile(75);
-                    runSummary.Top90PercentLatencyInMs = TelemetrySpan.GetLatencyPercentile(90);
-                    runSummary.Top95PercentLatencyInMs = TelemetrySpan.GetLatencyPercentile(95);
-                    runSummary.Top99PercentLatencyInMs = TelemetrySpan.GetLatencyPercentile(99);
-
                     string summary = JsonHelper.ToString(runSummary);
                     Utility.TeeTraceInformation(summary);
-                }
-                else
-                {
-                    Utility.TeeTraceInformation("Please adjust ItemCount high to run of at-least 1M");
                 }
 
                 Console.WriteLine("--------------------------------------------------------------------- ");
                 Console.WriteLine();
                 return runSummary;
             }
+        }
+
+        private static int GetPercent(double percent, int count)
+        {
+            int fraction = (int)(percent * count);
+            return fraction >= 1 ? fraction : 1;
         }
     }
 }
