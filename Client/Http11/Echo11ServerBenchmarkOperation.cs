@@ -14,7 +14,7 @@ namespace CosmosBenchmark
 
     internal class Echo11ServerBenchmarkOperation : IBenchmarkOperation
     {
-        private HttpClient client;
+        private static volatile Lazy<HttpClient> client;
         private readonly string requestUri;
         private IComputeHash authKeyHashFunction;
 
@@ -26,7 +26,10 @@ namespace CosmosBenchmark
 
             this.requestUri = config.RequestBaseUri().ToString();
 
-            client = Utility.CreateHttp1Client(config.MaxConnectionsPerServer());
+            if (client == null) // HACK: Instances are created serially, for now OKEY
+            {
+                client = new Lazy<HttpClient>(() => Utility.CreateHttp1Client(config.MaxConnectionsPerServer()));
+            }
 
             string authKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
             authKeyHashFunction = new StringHMACSHA256Hash(authKey);
@@ -47,7 +50,7 @@ namespace CosmosBenchmark
                 authKeyHashFunction);
             httpRequest.Headers.TryAddWithoutValidation(Microsoft.Azure.Documents.HttpConstants.HttpHeaders.Authorization, authorization);
 
-            using (HttpResponseMessage responseMessage = await client.SendAsync(httpRequest))
+            using (HttpResponseMessage responseMessage = await client.Value.SendAsync(httpRequest))
             {
                 responseMessage.EnsureSuccessStatusCode();
 
