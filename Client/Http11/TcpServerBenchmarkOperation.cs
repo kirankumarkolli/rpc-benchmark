@@ -6,6 +6,7 @@ namespace CosmosBenchmark
 {
     using System;
     using System.Collections.Generic;
+    using System.Globalization;
     using System.Linq;
     using System.Net;
     using System.Text;
@@ -16,57 +17,54 @@ namespace CosmosBenchmark
 
     internal class TcpServerBenchmarkOperation : IBenchmarkOperation
     {
-        static TransportClient tcpTransportClient;
+        private readonly TransportClient tcpTransportClient;
         private readonly Uri requestUri;
+
+        static readonly string authKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
+        private readonly string resourceId;
+        private readonly IComputeHash authKeyHashFunction;
+        private readonly string physicalAddress;
 
         public TcpServerBenchmarkOperation(BenchmarkConfig config)
         {
-            if (TcpServerBenchmarkOperation.tcpTransportClient == null)
-            {
-                TcpServerBenchmarkOperation.tcpTransportClient = Utility.CreateTcpClient(config.MaxConnectionsPerServer());
-            }
+            // TODO: Plug the ItemTemplateFile E2E with server as well
+            tcpTransportClient = Utility.CreateTcpClient(config.MaxConnectionsPerServer());
 
+            authKeyHashFunction = new StringHMACSHA256Hash(authKey);
+            this.resourceId = $"dbs/{config.Database}/colls/{config.Container}/docs/item1";
             this.requestUri = config.RequestBaseUri();
+            this.physicalAddress = $"{config.EndPoint.Trim(new char[] { '/' })}/application/{Guid.NewGuid().ToString()}/partition/{Guid.NewGuid().ToString()}/replica/{Guid.NewGuid().ToString()}/";
         }
 
         public async Task ExecuteOnceAsync()
         {
             Microsoft.Azure.Documents.DocumentServiceRequest reqeust = Microsoft.Azure.Documents.DocumentServiceRequest.CreateFromName(
                     Microsoft.Azure.Documents.OperationType.Read,
-                    "dbs/db1/col/col1/doc/item1", // ResourceId
+                    resourceFullName: resourceId, // ResourceId
                     Microsoft.Azure.Documents.ResourceType.Document,
                     Microsoft.Azure.Documents.AuthorizationTokenType.PrimaryMasterKey);
 
+            string dateHeaderValue = DateTime.UtcNow.ToString("r", CultureInfo.InvariantCulture);
+            reqeust.Headers[Microsoft.Azure.Documents.HttpConstants.HttpHeaders.XDate] = dateHeaderValue;
+
+            string authorization = AuthorizationHelper.GenerateKeyAuthorizationCore("GET", dateHeaderValue, "docs", resourceId, authKeyHashFunction);
+            reqeust.Headers[Microsoft.Azure.Documents.HttpConstants.HttpHeaders.Authorization] = authorization;
+
             using (ActivityScope activityScope = new ActivityScope(Guid.NewGuid()))
             {
-                Microsoft.Azure.Documents.StoreResponse storeResponse = await TcpServerBenchmarkOperation.tcpTransportClient.InvokeStoreAsync(
-                    //physicalAddress: new Uri("rnbd://cdb-ms-prod-eastus1-fd40.documents.azure.com:14364"),
-                    physicalAddress: this.requestUri,
+                Microsoft.Azure.Documents.StoreResponse storeResponse = await tcpTransportClient.InvokeStoreAsync(
+                    physicalAddress: new Uri(this.physicalAddress),
                     resourceOperation: Microsoft.Azure.Documents.ResourceOperation.ReadDocument,
                     request: reqeust);
 
-                Microsoft.Azure.Documents.DocumentServiceResponse documentServiceResponse = this.CompleteResponse(storeResponse, reqeust);
-
-                if (documentServiceResponse.StatusCode != System.Net.HttpStatusCode.OK)
+                if (storeResponse.StatusCode != System.Net.HttpStatusCode.OK || storeResponse.ResponseBody == null)
                 {
                     throw new Exception($"Unexpected status code {storeResponse.StatusCode}");
                 }
+
+                // drain response
+                using (storeResponse.ResponseBody) ;
             }
-        }
-        private Microsoft.Azure.Documents.DocumentServiceResponse CompleteResponse(
-            Microsoft.Azure.Documents.StoreResponse storeResponse,
-            Microsoft.Azure.Documents.DocumentServiceRequest request)
-        {
-            INameValueCollection headersFromStoreResponse = storeResponse.Headers;
-
-            Microsoft.Azure.Documents.DocumentServiceResponse response = new Microsoft.Azure.Documents.DocumentServiceResponse(
-                storeResponse.ResponseBody,
-                headersFromStoreResponse,
-                (HttpStatusCode)storeResponse.Status,
-                null,
-                request.SerializerSettings);
-
-            return response;
         }
 
         public Task PrepareAsync()
