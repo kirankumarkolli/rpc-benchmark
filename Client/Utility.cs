@@ -44,8 +44,10 @@ namespace CosmosBenchmark
 
         public static HttpClient CreateHttp2Client(int maxConnectionsPerServer)
         {
+            // ref: https://github.com/dotnet/runtime/issues/987
             HttpClient client = Utility.CreateHttpClient(maxConnectionsPerServer);
-            client.DefaultRequestVersion = new Version(2, 0);
+            client.DefaultRequestVersion = HttpVersion.Version20;
+            client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrHigher;
 
             return client;
         }
