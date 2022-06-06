@@ -23,7 +23,7 @@ namespace KestrelTcpDemo
     {
         private readonly IRntbdMessageParser _parser;
         private readonly IComputeHash computeHash;
-        private static readonly string AuthKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
+        internal static readonly string AuthKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
         private readonly byte[] testPayload;
 
         public Rntbd2ConnectionHandler(IRntbdMessageParser parser)
