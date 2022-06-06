@@ -39,6 +39,9 @@ namespace CosmosBenchmark
                 case "DotnetHttp2":
                     config = new DotnetHttp2EndpointConfig();
                     break;
+                case "DotnetHttp3":
+                    config = new DotnetHttp3EndpointConfig();
+                    break;
                 case "DotNetRntbd2":
                     config = new TcpServerEndpointConfig();
                     break;
@@ -47,9 +50,6 @@ namespace CosmosBenchmark
                     break;
                 case "ReactorHttp2":
                     config = new ReactorHttp2EndpointConfig();
-                    break;
-                case "Http3":
-                    config = new DotnetHttp3EndpointConfig();
                     break;
                 default:
                     throw new NotImplementedException();
@@ -203,7 +203,7 @@ namespace CosmosBenchmark
         public DotnetHttp3EndpointConfig()
         {
             this.DegreeOfParallelism = 5;
-            this.EndPoint = "https://localhost:8093/";
+            this.EndPoint = "https://localhost:9090/";
             this.IterationCount = 1000000;
             this.WorkloadType = "Echo30Server";
             this.Database = "db1";
