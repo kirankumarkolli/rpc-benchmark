@@ -62,7 +62,7 @@ namespace CosmosBenchmark
                 new TransportClient.Options(TimeSpan.FromSeconds(240))
                 {
                     MaxChannels = maxConnectionsPerServer,
-                    PartitionCount = 1,
+                    PartitionCount = 8,
                     MaxRequestsPerChannel = 10,
                     //PortReuseMode = PortReuseMode.,
                     //PortPoolReuseThreshold = rntbdPortPoolReuseThreshold,

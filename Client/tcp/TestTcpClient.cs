@@ -10,14 +10,14 @@ namespace Microsoft.Azure.Cosmos
 {
     public class TestTcpClient
     {
-        public static async Task ReadTest()
+        public static async Task ReadTestAsync()
         {
             Console.WriteLine("Hello world");
             TransportClient transportClient = new TransportClient(
                 new TransportClient.Options(TimeSpan.FromSeconds(240))
                 {
-                    MaxChannels = 1,
-                    PartitionCount = 1,
+                    MaxChannels = ushort.MaxValue,
+                    PartitionCount = 8,
                     MaxRequestsPerChannel = 10,
                     //PortReuseMode = PortReuseMode.,
                     //PortPoolReuseThreshold = rntbdPortPoolReuseThreshold,
@@ -58,7 +58,7 @@ namespace Microsoft.Azure.Cosmos
                     {
                         Microsoft.Azure.Documents.StoreResponse storeResponse = await transportClient.InvokeStoreAsync(
                             //physicalAddress: new Uri("rnbd://cdb-ms-prod-eastus1-fd40.documents.azure.com:14364"),
-                            physicalAddress: new Uri("http://127.0.0.1:8009/application/0749FECF-F6B0-41DC-8DB4-A19E214B1B0B/partition/4FCA2450-6D61-46A5-B971-0B1903204338/replica/6753AFE4-C375-4284-B70C-51910C16C902/"),
+                            physicalAddress: new Uri("https://127.0.0.1:8009/application/0749FECF-F6B0-41DC-8DB4-A19E214B1B0B/partition/4FCA2450-6D61-46A5-B971-0B1903204338/replica/6753AFE4-C375-4284-B70C-51910C16C902/"),
                             resourceOperation: Microsoft.Azure.Documents.ResourceOperation.ReadDocument,
                             request: reqeust);
 
