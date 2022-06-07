@@ -10,6 +10,7 @@ namespace Microsoft.Azure.Documents
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.IO;
+    using System.Linq;
     using Microsoft.Azure.Cosmos.Core.Trace;
 #if COSMOSCLIENT
     using Microsoft.Azure.Cosmos.Rntbd;
@@ -21,6 +22,7 @@ namespace Microsoft.Azure.Documents
         where T : Enum
     {
         private static Dictionary<ushort, int> TokenPositionMap;
+        private static volatile int TotalRequiredToken;
         internal RntbdToken[] tokens;
 
         // Ideally we could use MemoryPool but a lot of the APIs for GetBytes() for
@@ -36,9 +38,11 @@ namespace Microsoft.Azure.Documents
             Debug.Assert(t != null);
             Debug.Assert(this.tokens == null);
             this.tokens = t;
+            TotalRequiredToken = 0;
             if (TokenPositionMap == null)
             {
                 TokenPositionMap = RntbdTokenStream<T>.GetTokenPositions(t);
+                TotalRequiredToken = t.Where(e => e.IsRequired()).Count();
             }
         }
 
@@ -167,7 +171,8 @@ namespace Microsoft.Azure.Documents
 
         public void ParseFrom(BinaryReader reader)
         {
-            while(reader.BaseStream.Position < reader.BaseStream.Length)
+            int requiredCountSoFar = 0;
+            while (reader.BaseStream.Position < reader.BaseStream.Length)
             {
                 ushort identifier = reader.ReadUInt16();
                 RntbdTokenTypes type = (RntbdTokenTypes)reader.ReadByte();
@@ -248,16 +253,24 @@ namespace Microsoft.Azure.Documents
                 }
 
                 token.isPresent = true;
+
+                if (token.IsRequired() && token.isPresent)
+                {
+                    ++requiredCountSoFar;
+                }
             }
 
-            foreach(RntbdToken token in this.tokens)
+            if (requiredCountSoFar != TotalRequiredToken)
             {
-                if(!token.isPresent && token.IsRequired())
+                foreach (RntbdToken token in this.tokens)
                 {
-                    DefaultTrace.TraceError("Required token with identifier {0} not found in RNTBD token stream",
-                        token.GetTokenIdentifier());
+                    if (!token.isPresent && token.IsRequired())
+                    {
+                        DefaultTrace.TraceError("Required token with identifier {0} not found in RNTBD token stream",
+                            token.GetTokenIdentifier());
 
                     throw new InternalServerErrorException(RMResources.InternalServerError, this.GetValidationFailureHeader());
+                    }
                 }
             }
         }
