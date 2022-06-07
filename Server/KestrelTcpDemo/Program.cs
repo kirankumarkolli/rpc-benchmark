@@ -49,13 +49,13 @@ namespace KestrelTcpDemo
                             listenOptions => listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2
                             );
 
-                        options.ListenLocalhost(9090,
-                            listenOptions => 
-                                { 
-                                    listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http3;
-                                    listenOptions.UseHttps();
-                                }
-                            );
+                        //options.ListenLocalhost(9090,
+                        //    listenOptions => 
+                        //        { 
+                        //            listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http3;
+                        //            listenOptions.UseHttps();
+                        //        }
+                        //    );
                     })
                 .ConfigureLogging((context, loggingBuilder) => 
                     {
