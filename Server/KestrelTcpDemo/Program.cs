@@ -26,29 +26,19 @@ namespace KestrelTcpDemo
                     })
                 .UseKestrel(options =>
                     {
-                        //// TCP 8007
-                        //options.ListenLocalhost(8007, builder =>
-                        //{
-                        //    builder.UseConnectionHandler<MyEchoConnectionHandler>();
-                        //});
+                        options.ListenLocalhost(7070, listenOptions =>
+                            {
+                                listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1;
+                                listenOptions.UseHttps();
+                            });
 
-                        //// HTTP 5000
-                        //options.ListenLocalhost(5000);
+                        options.ListenLocalhost(8080, listenOptions =>
+                            {
+                                listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
+                                listenOptions.UseHttps();
+                            });
 
-                        //// HTTPS 5001
-                        //options.ListenLocalhost(5001, builder =>
-                        //{
-                        //    builder.UseHttps();
-                        //});
-
-                        options.ListenLocalhost(7070,
-                            listenOptions => listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1
-                            );
-
-                        options.ListenLocalhost(8080, 
-                            listenOptions => listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2
-                            );
-
+                        // HTTP3
                         //options.ListenLocalhost(9090,
                         //    listenOptions => 
                         //        { 

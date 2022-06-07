@@ -105,6 +105,7 @@ namespace CosmosBenchmark
             {
                 Utility.TeeTraceInformation($"{nameof(BenchmarkConfig)} arguments");
                 Utility.TeeTraceInformation($"IsServerGC: {GCSettings.IsServerGC}");
+                Utility.TeeTraceInformation($"Test address: {this.RequestBaseUri()}");
                 Utility.TeeTraceInformation("--------------------------------------------------------------------- ");
                 Utility.TeeTraceInformation(JsonHelper.ToString(this));
                 Utility.TeeTraceInformation("--------------------------------------------------------------------- ");
@@ -133,7 +134,7 @@ namespace CosmosBenchmark
         public TcpServerEndpointConfig()
         {
             this.DegreeOfParallelism = 5;
-            this.EndPoint = "http://127.0.0.1:8009/";
+            this.EndPoint = "https://127.0.0.1:8009/";
             this.IterationCount = 1000000;
             this.WorkloadType = "TcpServer";
             this.Database = "db1";
@@ -161,7 +162,7 @@ namespace CosmosBenchmark
         public DotnetHttp11EndpointConfig()
         {
             this.DegreeOfParallelism = 5;
-            this.EndPoint = "http://localhost:7070/";
+            this.EndPoint = "https://localhost:7070/";
             this.IterationCount = 1000000;
             this.WorkloadType = "Echo11Server"; 
             this.Database = "db1";
@@ -175,7 +176,7 @@ namespace CosmosBenchmark
         public ReactorHttp2EndpointConfig()
         {
             this.DegreeOfParallelism = 5;
-            this.EndPoint = "http://localhost:8080/";
+            this.EndPoint = "https://localhost:8080/";
             this.IterationCount = 1000000;
             this.WorkloadType = "Echo20Server"; ;
             this.Database = "db1";
@@ -189,7 +190,7 @@ namespace CosmosBenchmark
         public DotnetHttp2EndpointConfig()
         {
             this.DegreeOfParallelism = 5;
-            this.EndPoint = "http://localhost:8080/";
+            this.EndPoint = "https://localhost:8080/";
             this.IterationCount = 1000000;
             this.WorkloadType = "Echo20Server"; ;
             this.Database = "db1";

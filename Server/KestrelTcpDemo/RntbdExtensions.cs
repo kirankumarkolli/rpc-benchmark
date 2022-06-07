@@ -46,7 +46,7 @@ namespace KestrelTcpDemo
             options.Listen(_options.EndPoint, builder =>
             {
                 builder.UseConnectionHandler<Rntbd2ConnectionHandler>();
-                //builder.UseHttps();
+                builder.UseHttps();
             });
 
             //options.ConfigureHttpsDefaults(httpsOptions =>
