@@ -1,15 +1,28 @@
+Start server
+```
+cd Server
+dotnet run -c Release
+```
+
+
+Client benchmarking
+
 
 For HTTP1: 
 ```
-dotnet run CosmosBenchmark.csproj -w Echo11Server -c 10 -m 10
+cd Client
+dotnet run -c Release -- -w DotnetHttp1 -c 100 -m 100
 ```
 
 For HTTP2: 
 ```
-dotnet run CosmosBenchmark.csproj -w Echo20Server -e https://localhost:8081 --database db1 --container c1 -n 10000 --pl 10
+cd Client
+dotnet run -c Release -- -w DotnetHttp2 -c 100 -m 4
 ```
 
-For Rntbd2
+For Rntbd2: 
 ```
-dotnet run CosmosBenchmark.csproj -c Release -- -w DotNetRntbd2 -c 10 -m 10
+cd Client
+dotnet run -c Release -- -w DotnetRntbd2 -c 100 -m 4
 ```
+
