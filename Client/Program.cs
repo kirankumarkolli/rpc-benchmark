@@ -14,7 +14,6 @@ namespace CosmosBenchmark
     using System.Net;
     using System.Net.Sockets;
     using Microsoft.Azure.Cosmos;
-    using System.CommandLine;
 
     /// <summary>
     /// This sample demonstrates how to achieve high performance writes using Azure Comsos DB.
