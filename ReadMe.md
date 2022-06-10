@@ -18,11 +18,23 @@
 
 ## E2E scenario with auto account routing
 - [ ] Dotnet implementation 
-- [ ] 
+
 
 
 ## E2E scenario flow (including session concept)
 - [ ] Dotnet implementation 
+
+
+## Few misc
+- [ ] Rntbd full length including headers & body
+- [ ] Rntbd headers order (front load routing context header's)
+- [ ] Message protocol with routing context explictly
+- [ ] Avoid replica address rewriting (make it full padd-through)
+
+## Possible extensions
+- [ ] Rntbd test server (CTL altenative)
+
+
 
 Proposal
 
