@@ -1,3 +1,8 @@
+<h1>15K RPS per Core Challenge</h1>
+
+<h3>Proposal</h3>
+
+![image](https://user-images.githubusercontent.com/6880899/172974154-57e81c2a-80d3-4e0c-8fa7-c1091fbc116d.png)
 
 
 # Tasks
@@ -31,39 +36,25 @@
 - [ ] Message protocol with routing context explictly
 - [ ] Avoid replica address rewriting (make it full padd-through)
 
+## Possible optimizatons for Rntbd 
+- [ ] Ordering of Token through templates (HACK right solution)
+- [ ] Avoid explict loop for all required token presence (PreCount is one possible solution)
+- [ ] Avoid explict loop for content length (Can it be in-flight compute on every token set)?
+
 ## Possible extensions
 - [ ] Rntbd test server (CTL altenative)
 
 
-
-Proposal
-
-
-![image](https://user-images.githubusercontent.com/6880899/172974154-57e81c2a-80d3-4e0c-8fa7-c1091fbc116d.png)
-
-
-
-To start gRPC service
+To start service
 ```
-cd GrpcService/
-dotnet run -c retail -- -w gRPC
-```
-
-To start Dotnet Http2 service
-```
-cd GrpcService/
-dotnet run -c retail -- -w http2
-```
-
-To start JAVA reactor Http2, Tcp (a.k.a. Rntbd) service
-```
-cd server-java/
-mvn clean package -f pom.xml -DskipTests -Dgpg.skip -Ppackage-assembly
-java -jar ./target/TestServer-1.0-SNAPSHOT-jar-with-dependencies.jar
+cd Service/
+dotnet run -c retail 
 ```
 
 How to run the client's
 ```
 cd Client/
-dotnet run -c retail -- -w [Http11|DotnetHttp2|ReactorHttp2|Grpc|Tcp]  -e [localhost/ipv4] -c 8 --mcpe 2
+dotnet run -c retail -- -w [DotnetHttp1|DotnetHttp2|DotnetRntbd2]  -c 100 -m 2
 ```
+'-m': Max connections per endpoint
+'-c': Concurrency of worload
