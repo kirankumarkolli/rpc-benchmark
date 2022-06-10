@@ -10,25 +10,70 @@ namespace CosmosBenchmark
     using System.IO;
     using System.Linq;
     using System.Runtime;
-    using CommandLine;
+    using System.CommandLine;
+    using System.Threading.Tasks;
 
-    public class WorkloadTypeConfig
+    internal class WorkloadTypeConfig
     {
-        [Option(shortName: 'w', longName: "WorkloadType", Required = true, HelpText = "Workload types (DotNetHttp1, DotNetRntbd2, DotnetHttp2, Grpc, ReactorHttp2, Http3)")]
         public string WorkloadType { get; set; }
 
-        [Option(shortName: 'c', longName: "Concurrency", Required = true, HelpText = "Concurrency")]
         public int Concurrency { get; set; }
 
-        [Option(shortName: 'm', longName: "MaxConnectionsPerEndpoint", Required = true, HelpText = "Max connections per endpoint")]
         public int MaxConnectionsPerEndpoint { get; set; }
+
+        private static (string, int?, int?) ParseArgs(string[] args)
+        {
+            var workloadOption = new Option<string>(
+                new string[] { "w", "WorkloadType" },
+                description: "Workload types (DotNetHttp1, DotNetRntbd2, DotnetHttp2)")
+            {
+                IsRequired = true,
+            };
+
+            var concurencyOption = new Option<int>(
+                new string[] { "c", "Concurrency" },
+                description: "Concurrency of operations")
+            {
+                IsRequired = true,
+            };
+
+            var maxConnectionsPerEndpointOption = new Option<int>(
+                new string[] { "m", "mcpe" },
+                description: "Max connections per endpoint")
+            {
+                IsRequired = true,
+            };
+
+            var rootCommand = new RootCommand("RPC Benchmark Tool");
+            rootCommand.AddOption(workloadOption);
+            rootCommand.AddOption(concurencyOption);
+            rootCommand.AddOption(maxConnectionsPerEndpointOption);
+
+            string workload = null;
+            int? concurrency = 0;
+            int? mrpe = 0;
+            rootCommand.SetHandler((invocationContext) =>
+            {
+                workload = invocationContext.ParseResult.CommandResult.GetValueForOption<string>(workloadOption);
+                concurrency = invocationContext.ParseResult.CommandResult.GetValueForOption<int>(concurencyOption);
+                mrpe = invocationContext.ParseResult.CommandResult.GetValueForOption<int>(maxConnectionsPerEndpointOption);
+            });
+
+            rootCommand.Invoke(args);
+
+            return (workload, concurrency, mrpe);
+        }
 
         internal static BenchmarkConfig From(string[] args)
         {
-            WorkloadTypeConfig options = null;
-            ParserResult<WorkloadTypeConfig> parserResult = Parser.Default.ParseArguments<WorkloadTypeConfig>(args);
-            parserResult.WithParsed<WorkloadTypeConfig>(e => options = e);
-            parserResult.WithNotParsed(errors => HandleParseError(errors));
+            (string workLoadType, int? concurrency, int? mrpe) = ParseArgs(args);
+
+            WorkloadTypeConfig options = new WorkloadTypeConfig()
+            {
+                WorkloadType = workLoadType,
+                Concurrency = concurrency.Value,
+                MaxConnectionsPerEndpoint = mrpe.Value,
+            };
 
             BenchmarkConfig config = null;
             switch (options.WorkloadType)
@@ -59,19 +104,6 @@ namespace CosmosBenchmark
             config.DegreeOfParallelism = options.Concurrency;
 
             return config;
-        }
-
-        internal static void HandleParseError(IEnumerable<Error> errors)
-        {
-            using (ConsoleColorContext ct = new ConsoleColorContext(ConsoleColor.Red))
-            {
-                foreach (Error e in errors)
-                {
-                    Console.WriteLine(e.ToString());
-                }
-            }
-
-            Environment.Exit(errors.Count());
         }
     }
 
