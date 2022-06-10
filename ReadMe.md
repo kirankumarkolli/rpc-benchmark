@@ -10,20 +10,20 @@
 ## With pre-configured account routing info
 - [ ] Http1 and Http2 E2E integration 
 - [ ] Rntbd2 E2E integration (Use .NET Pipe abstraction if possible leverage on client as well)
+- [ ] Http2 Comsos header HPAC possibility (.NET seems only supporting for default header's)
 - [ ] Grpc implementation
 - [ ] Http3 endpoint and E2E integration 
-- [ ] Http2 Comsos header HPAC possibility (.NET seems only supporting for default header's)
 - [ ] Native Rntbd server (With Backend code)
 - [ ] Native Http2 server (explore Http2 implementations)
 
-## Benchmarking (Local core)
+## Benchmarking (Azure env core)
 - [ ] Server AI integration (RPS, latency and scenario labeling/dimension)
 - [ ] Azure stand-by runner (Router and proxy on same node)
 - [ ] Azure stand-by runner (Router and proxy on different node's)
 
 ## E2E scenario with auto account routing
 - [ ] Dotnet implementation 
-
+- [ ] Native implementation (metadata provider can be managed)
 
 
 ## E2E scenario flow (including session concept)
