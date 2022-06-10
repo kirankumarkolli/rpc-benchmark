@@ -17,7 +17,7 @@ namespace CosmosBenchmark
 
     internal class TcpServerBenchmarkOperation : IBenchmarkOperation
     {
-        private readonly TransportClient tcpTransportClient;
+        private static volatile Lazy<TransportClient> tcpTransportClient;
         private readonly Uri requestUri;
 
         static readonly string authKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
@@ -28,7 +28,10 @@ namespace CosmosBenchmark
         public TcpServerBenchmarkOperation(BenchmarkConfig config)
         {
             // TODO: Plug the ItemTemplateFile E2E with server as well
-            tcpTransportClient = Utility.CreateTcpClient(config.MaxConnectionsPerServer());
+            if (tcpTransportClient == null) // HACK: Instances are created serially, for now OKEY
+            {
+                tcpTransportClient = new Lazy<TransportClient>(() => Utility.CreateTcpClient(config.MaxConnectionsPerServer()));
+            }
 
             authKeyHashFunction = new StringHMACSHA256Hash(authKey);
             this.resourceId = $"dbs/{config.Database}/colls/{config.Container}/docs/item1";
@@ -52,7 +55,7 @@ namespace CosmosBenchmark
 
             using (ActivityScope activityScope = new ActivityScope(Guid.NewGuid()))
             {
-                Microsoft.Azure.Documents.StoreResponse storeResponse = await tcpTransportClient.InvokeStoreAsync(
+                Microsoft.Azure.Documents.StoreResponse storeResponse = await tcpTransportClient.Value.InvokeStoreAsync(
                     physicalAddress: new Uri(this.physicalAddress),
                     resourceOperation: Microsoft.Azure.Documents.ResourceOperation.ReadDocument,
                     request: reqeust);

@@ -5,6 +5,8 @@ using System.IO;
 using System.IO.Pipelines;
 using System.Net;
 using System.Text;
+using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -24,11 +26,34 @@ namespace KestrelTcpDemo
         private readonly IComputeHash computeHash;
         internal static readonly string AuthKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
         private readonly byte[] testPayload;
+        private readonly Channel<RntbdReqeustContext> requestQueue = Channel.CreateBounded<RntbdReqeustContext>(
+                                new BoundedChannelOptions(1000)
+                                {
+                                    AllowSynchronousContinuations = true,
+                                    FullMode = BoundedChannelFullMode.DropOldest
+                                }); // TODO: Drop handler to fail message gracefully 
+        private readonly Task[] dequeueTasks;
+        private CancellationTokenSource tokenSource = new CancellationTokenSource();
 
         public Rntbd2ConnectionHandler()
         {
             computeHash = new StringHMACSHA256Hash(Rntbd2ConnectionHandler.AuthKey);
             testPayload = Encoding.UTF8.GetBytes(File.ReadAllText("TestData.json"));
+
+            dequeueTasks = new Task[Environment.ProcessorCount];
+            for (int i = 0; i < Environment.ProcessorCount; i++)
+            {
+                dequeueTasks[i] = DeqeueueAndProcess(tokenSource.Token); // TODO: When to dispose them ??
+            }
+        }
+
+        private async Task DeqeueueAndProcess(CancellationToken token)
+        {
+            while (! token.IsCancellationRequested)
+            {
+                RntbdReqeustContext requestContext = await requestQueue.Reader.ReadAsync(token);
+                await ProcessMessageAsync(requestContext);
+            }
         }
 
         public override async Task OnConnectedAsync(ConnectionContext connection)
@@ -47,7 +72,7 @@ namespace KestrelTcpDemo
 
                         if (length != -1) // request already completed
                         {
-                            int responseLength = await ProcessMessageAsync(connection, buffer.Slice(0, length));
+                            await ProcessMessageAsync(connection, buffer.Slice(0, length));
 
                             connection.Transport.Input.AdvanceTo(readResult.Buffer.GetPosition(length), readResult.Buffer.End);
                         }
@@ -143,29 +168,46 @@ namespace KestrelTcpDemo
             request.ParseFrom(ref reader);
         }
 
-        private async Task<int> ProcessMessageAsync(
+        private Task ProcessMessageAsync(
             ConnectionContext connection,
             ReadOnlySequence<byte> buffer)
         {
             // TODO: Avoid array materialization
             byte[] deserializePayload = buffer.Slice(4, buffer.Length - 4).ToArray();
+            return ProcessMessageAsync(connection, deserializePayload);
+        }
 
-            Request request = new Request();
+        private async Task ProcessMessageAsync(
+            ConnectionContext connection,
+            byte[] deserializePayload)
+        {
+            RntbdReqeustContext context = new();
+            context.OutputWriter = connection.Transport.Output;
+
             DeserializeReqeust(deserializePayload,
                 out RntbdConstants.RntbdResourceType resourceType,
                 out RntbdConstants.RntbdOperationType operationType,
                 out Guid operationId,
-                request);
+                context.Request);
 
+            context.ResourceType = resourceType;
+            context.OperationType = operationType;
+            context.ConnectionId = context.ConnectionId;
+
+            await requestQueue.Writer.WriteAsync(context);
+        }
+
+        private async Task ProcessMessageAsync(RntbdReqeustContext context)
+        {
             //if (request)
-            string dbName = BytesSerializer.GetStringFromBytes(request.databaseName.value.valueBytes);
-            string collectionName = BytesSerializer.GetStringFromBytes(request.collectionName.value.valueBytes);
-            string itemName = BytesSerializer.GetStringFromBytes(request.documentName.value.valueBytes);
+            string dbName = BytesSerializer.GetStringFromBytes(context.Request.databaseName.value.valueBytes);
+            string collectionName = BytesSerializer.GetStringFromBytes(context.Request.collectionName.value.valueBytes);
+            string itemName = BytesSerializer.GetStringFromBytes(context.Request.documentName.value.valueBytes);
 
-            string dateHeader = BytesSerializer.GetStringFromBytes(request.date.value.valueBytes);
-            string authHeaderValue = BytesSerializer.GetStringFromBytes(request.authorizationToken.value.valueBytes);
+            string dateHeader = BytesSerializer.GetStringFromBytes(context.Request.date.value.valueBytes);
+            string authHeaderValue = BytesSerializer.GetStringFromBytes(context.Request.authorizationToken.value.valueBytes);
 
-            if (resourceType == RntbdResourceType.Document && operationType == RntbdOperationType.Read)
+            if (context.ResourceType == RntbdResourceType.Document && context.OperationType == RntbdOperationType.Read)
             {
                 string authorization = AuthorizationHelper.GenerateKeyAuthorizationCore("GET", 
                     dateHeader, 
@@ -183,24 +225,22 @@ namespace KestrelTcpDemo
             response.payloadPresent.value.valueByte = (byte)1; 
             response.payloadPresent.isPresent = true;
 
-            response.transportRequestID.value.valueULong = request.transportRequestID.value.valueULong;
+            response.transportRequestID.value.valueULong = context.Request.transportRequestID.value.valueULong;
             response.transportRequestID.isPresent = true;
 
             response.requestCharge.value.valueDouble = 1.0;
             response.requestCharge.isPresent = true;
 
-            Trace.TraceError($"Processing {connection.ConnectionId} -> {request.transportRequestID.value.valueULong}");
+            Trace.TraceError($"Processing {context.ConnectionId} -> {context.Request.transportRequestID.value.valueULong}");
 
             int totalResponselength = sizeof(UInt32) + sizeof(UInt32) + 16;
             totalResponselength += response.CalculateLength();
 
-            Memory<byte> bytes = connection.Transport.Output.GetMemory(totalResponselength);
-            int serializedLength = Rntbd2ConnectionHandler.Serialize(totalResponselength, 200, operationId, response, testPayload, bytes);
+            Memory<byte> bytes = context.OutputWriter.GetMemory(totalResponselength);
+            int serializedLength = Rntbd2ConnectionHandler.Serialize(totalResponselength, 200, context.OperationId, response, testPayload, bytes);
 
-            connection.Transport.Output.Advance(serializedLength);
-            await connection.Transport.Output.FlushAsync();
-
-            return serializedLength;
+            context.OutputWriter.Advance(serializedLength);
+            await context.OutputWriter.FlushAsync();
         }
 
         internal static int Serialize<T>(
@@ -226,6 +266,18 @@ namespace KestrelTcpDemo
             writer.Write(payload);
 
             return totalResponselength + sizeof(UInt32) + payload.Length;   
+        }
+
+        public class RntbdReqeustContext
+        {
+            internal RntbdConstants.RntbdResourceType ResourceType { get; set; }
+            internal RntbdConstants.RntbdOperationType OperationType { get; set; }
+            internal Guid OperationId { get; set; }
+            internal Request Request { get; set; } = new();
+            internal string ConnectionId { get; set; }
+
+            // TODO: Can pipewriter be cached???
+            internal PipeWriter OutputWriter { get; set; }
         }
     }
 }
