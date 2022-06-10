@@ -37,7 +37,7 @@
 - [ ] Avoid replica address rewriting (make it full padd-through)
 
 ## Possible optimizatons for Rntbd 
-- [ ] Ordering of Token through templates (HACK right solution)
+- [ ] Ordering of Token through templates (fix Hack)
 - [ ] Avoid explict loop for all required token presence (PreCount is one possible solution)
 - [ ] Avoid explict loop for content length (Can it be in-flight compute on every token set)?
 
@@ -48,13 +48,13 @@
 To start service
 ```
 cd Service/
-dotnet run -c retail 
+dotnet run -c Release 
 ```
 
 How to run the client's
 ```
 cd Client/
-dotnet run -c retail -- -w [DotnetHttp1|DotnetHttp2|DotnetRntbd2]  -c 100 -m 2
+dotnet run -c Release -- -w [DotnetHttp1|DotnetHttp2|DotnetRntbd2]  -c 100 -m 2
 ```
 '-m': Max connections per endpoint  
 '-c': Concurrency of worload
