@@ -9,6 +9,7 @@ using System.Security.Authentication;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Connections;
+using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,16 +44,32 @@ namespace KestrelTcpDemo
 
         public void Configure(KestrelServerOptions options)
         {
-            options.Listen(_options.EndPoint, builder =>
+            options.ListenLocalhost(_options.EndPoint.Port, listenOptions =>
             {
-                builder.UseConnectionHandler<Rntbd2ConnectionHandler>();
-                builder.UseHttps();
-            });
+                listenOptions.Protocols = HttpProtocols.None;
+                listenOptions.UseConnectionHandler<Rntbd2ConnectionHandler>();
+                listenOptions.UseHttps();
+                listenOptions.UseConnectionLogging();
 
-            //options.ConfigureHttpsDefaults(httpsOptions =>
-            //{
-            //    httpsOptions.SslProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
-            //});
+                listenOptions.Use((context, next) =>
+                {
+                    var tlsFeature = context.Features.Get<ITlsHandshakeFeature>()!;
+
+                    if(tlsFeature.Protocol == SslProtocols.Tls12 | tlsFeature.Protocol == SslProtocols.Tls13)
+                    {
+                        throw new NotSupportedException(
+                            $"Prohibited Protocol: {tlsFeature.Protocol}");
+                    }
+
+                    if (tlsFeature.CipherAlgorithm == CipherAlgorithmType.Null)
+                    {
+                        throw new NotSupportedException(
+                            $"Prohibited cipher: {tlsFeature.CipherAlgorithm}");
+                    }
+
+                    return next();
+                });
+            });
         }
 
         // The framework exposes options for how to bind
