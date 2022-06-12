@@ -50,25 +50,6 @@ namespace KestrelTcpDemo
                 listenOptions.UseConnectionHandler<Rntbd2ConnectionHandler>();
                 listenOptions.UseHttps();
                 listenOptions.UseConnectionLogging();
-
-                listenOptions.Use((context, next) =>
-                {
-                    var tlsFeature = context.Features.Get<ITlsHandshakeFeature>()!;
-
-                    if(tlsFeature.Protocol == SslProtocols.Tls12 | tlsFeature.Protocol == SslProtocols.Tls13)
-                    {
-                        throw new NotSupportedException(
-                            $"Prohibited Protocol: {tlsFeature.Protocol}");
-                    }
-
-                    if (tlsFeature.CipherAlgorithm == CipherAlgorithmType.Null)
-                    {
-                        throw new NotSupportedException(
-                            $"Prohibited cipher: {tlsFeature.CipherAlgorithm}");
-                    }
-
-                    return next();
-                });
             });
         }
 

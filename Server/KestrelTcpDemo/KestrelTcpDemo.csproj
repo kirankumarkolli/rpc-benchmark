@@ -8,6 +8,10 @@
 	<EnablePreviewFeatures>True</EnablePreviewFeatures>
   </PropertyGroup>
 
+	<ItemGroup>
+		<Compile Include="..\..\Common\**\*.cs" />
+	</ItemGroup>	
+
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
     <DefineConstants>$(DefineConstants)TRACE;COSMOSCLIENT</DefineConstants>
   </PropertyGroup>
