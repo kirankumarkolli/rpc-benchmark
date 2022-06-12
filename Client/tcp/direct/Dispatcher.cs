@@ -602,15 +602,16 @@ namespace Microsoft.Azure.Documents.Rntbd
             Guid activityId = new Guid(responseActivityIdBytes);
             Trace.CorrelationManager.ActivityId = activityId;
 
-            using (MemoryStream readStream = new MemoryStream(responseMd.Metadata))
+            RntbdConstants.ConnectionContextResponse response = null;
+            void deSerialize()
             {
-                RntbdConstants.ConnectionContextResponse response = null;
-                using (BinaryReader reader = new BinaryReader(readStream))
-                {
-                    response = new RntbdConstants.ConnectionContextResponse();
-                    response.ParseFrom(reader);
-                }
+                BytesDeserializer reader = new BytesDeserializer(responseMd.Metadata, responseMd.Metadata.Length);
+                response = new RntbdConstants.ConnectionContextResponse();
+                response.ParseFrom(ref reader);
+            }
+            deSerialize();
 
+            {
                 string serverAgent = BytesSerializer.GetStringFromBytes(response.serverAgent.value.valueBytes);
                 string serverVersion = BytesSerializer.GetStringFromBytes(response.serverVersion.value.valueBytes);
                 Debug.Assert(this.serverProperties == null);
@@ -688,12 +689,14 @@ namespace Microsoft.Azure.Documents.Rntbd
                         TransportSerialization.DecodeRntbdHeader(responseMd.Header);
 
                     args.ActivityId = header.ActivityId;
-                    using (MemoryStream readStream = new MemoryStream(metadata))
-                    using (BinaryReader reader = new BinaryReader(readStream, Encoding.UTF8))
+
+                    void deSerialize()
                     {
+                        BytesDeserializer reader = new BytesDeserializer(metadata, metadata.Length);
                         Debug.Assert(response != null);
-                        response.ParseFrom(reader);
+                        response.ParseFrom(ref reader);
                     }
+                    deSerialize();
 
                     MemoryStream bodyStream = null;
                     if (response.payloadPresent.value.valueByte != (byte) 0x00)

@@ -7,7 +7,6 @@ namespace Microsoft.Azure.Documents
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
-    using Microsoft.Azure.Documents.Routing;
 
     internal sealed class DocumentServiceRequestContext
     {
