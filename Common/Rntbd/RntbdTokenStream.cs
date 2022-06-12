@@ -11,9 +11,6 @@ namespace Microsoft.Azure.Documents
     using System.Diagnostics;
     using System.Linq;
     using Microsoft.Azure.Cosmos.Rntbd;
-#if COSMOSCLIENT
-    using Microsoft.Azure.Cosmos.Rntbd;
-#endif
 
     internal abstract class RntbdTokenStream<T>
         where T : Enum

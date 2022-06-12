@@ -10,9 +10,6 @@ namespace Microsoft.Azure.Documents
 #endif
     using System.Diagnostics;
     using System.Runtime.InteropServices;
-#if COSMOSCLIENT
-    using Microsoft.Azure.Cosmos.Rntbd;
-#endif
 
     internal enum RntbdTokenTypes : byte
     {

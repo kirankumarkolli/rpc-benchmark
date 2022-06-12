@@ -42,7 +42,7 @@ namespace KestrelTcpDemo
             _sslStreamFactory = s => new SslStream(s, leaveInnerStreamOpen: true, userCertificateValidationCallback: null);
         }
 
-        private SslDuplexPipe CreateSslDuplexPipe(IDuplexPipe transport, MemoryPool<byte> memoryPool)
+        private SslDuplexPipe CreateSslDuplexPipe(IDuplexPipe duplexPipe, MemoryPool<byte> memoryPool)
         {
             StreamPipeReaderOptions inputPipeOptions = new StreamPipeReaderOptions
             (
@@ -59,7 +59,7 @@ namespace KestrelTcpDemo
                 leaveOpen: true
             );
 
-            return new SslDuplexPipe(transport, inputPipeOptions, outputPipeOptions, _sslStreamFactory);
+            return new SslDuplexPipe(duplexPipe, inputPipeOptions, outputPipeOptions, _sslStreamFactory);
         }
 
         internal static X509Certificate2 GetServerCertificate(string serverName)
