@@ -15,7 +15,7 @@
   </PropertyGroup>
 	
 	<ItemGroup>
-		<Compile Include="..\Common\**\*.cs" />
+		<Compile Include="..\Common\Rntbd\*.cs" />
 	</ItemGroup>
 	<ItemGroup>
     <None Include="Player.json">
