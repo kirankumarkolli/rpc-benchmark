@@ -11,3 +11,4 @@ target/
 /server-java/.classpath
 /server-java/.factorypath
 /server-java/.project
+*.user

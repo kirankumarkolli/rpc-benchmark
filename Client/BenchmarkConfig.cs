@@ -16,14 +16,18 @@ namespace CosmosBenchmark
         [Option(shortName: 'w', longName: "WorkloadType", Required = true, HelpText = "Workload types (DotNetHttp1, DotNetRntbd2, DotnetHttp2, Grpc, ReactorHttp2, Http3)")]
         public string WorkloadType { get; set; }
 
-        [Option(shortName: 'c', longName: "Concurrency", Required = true, HelpText = "Concurrency")]
+        [Option(shortName: 'c', longName: "Concurrency", Required = false, HelpText = "Concurrency")]
         public int Concurrency { get; set; }
 
-        [Option(shortName: 'm', longName: "MaxConnectionsPerEndpoint", Required = true, HelpText = "Max connections per endpoint")]
+        [Option(shortName: 'm', longName: "MaxConnectionsPerEndpoint", Required = false, HelpText = "Max connections per endpoint")]
         public int MaxConnectionsPerEndpoint { get; set; }
+
+        [Option(shortName: 'h', longName: "Hostname", Required = false, Default = "localhost", HelpText = "Target hostname")]
+        public string Hostname { get; set; }
 
         internal static BenchmarkConfig From(string[] args)
         {
+            // fabianm DEBUG HINT
             WorkloadTypeConfig options = null;
             ParserResult<WorkloadTypeConfig> parserResult = Parser.Default.ParseArguments<WorkloadTypeConfig>(args);
             parserResult.WithParsed<WorkloadTypeConfig>(e => options = e);
@@ -33,22 +37,22 @@ namespace CosmosBenchmark
             switch (options.WorkloadType)
             {
                 case "DotnetHttp1":
-                    config = new DotnetHttp11EndpointConfig();
+                    config = new DotnetHttp11EndpointConfig(parserResult.Value.Hostname);
                     break;
                 case "DotnetHttp2":
-                    config = new DotnetHttp2EndpointConfig();
+                    config = new DotnetHttp2EndpointConfig(parserResult.Value.Hostname);
                     break;
                 case "DotnetHttp3":
-                    config = new DotnetHttp3EndpointConfig();
+                    config = new DotnetHttp3EndpointConfig(parserResult.Value.Hostname);
                     break;
                 case "DotnetRntbd2":
-                    config = new TcpServerEndpointConfig();
+                    config = new TcpServerEndpointConfig(parserResult.Value.Hostname);
                     break;
                 case "Grpc":
-                    config = new GrpcEndpointConfig();
+                    config = new GrpcEndpointConfig(parserResult.Value.Hostname);
                     break;
                 case "ReactorHttp2":
-                    config = new ReactorHttp2EndpointConfig();
+                    config = new ReactorHttp2EndpointConfig(parserResult.Value.Hostname);
                     break;
                 default:
                     throw new NotImplementedException();
@@ -130,10 +134,10 @@ namespace CosmosBenchmark
 
     internal class TcpServerEndpointConfig : BenchmarkConfig
     {
-        public TcpServerEndpointConfig()
+        public TcpServerEndpointConfig(string hostname)
         {
             this.DegreeOfParallelism = 5;
-            this.EndPoint = "https://localhost:8009/";
+            this.EndPoint = $"https://{hostname}:8009/";
             this.IterationCount = 1000000;
             this.WorkloadType = "TcpServer";
             this.Database = "db1";
@@ -144,10 +148,10 @@ namespace CosmosBenchmark
 
     internal class GrpcEndpointConfig : BenchmarkConfig
     {
-        public GrpcEndpointConfig()
+        public GrpcEndpointConfig(string hostname)
         {
             this.DegreeOfParallelism = 5;
-            this.EndPoint = "https://localhost:8083/";
+            this.EndPoint = $"https://{hostname}:8083/";
             this.IterationCount = 1000000;
             this.WorkloadType = "Grpc";
             this.Database = "db1";
@@ -158,10 +162,10 @@ namespace CosmosBenchmark
 
     internal class DotnetHttp11EndpointConfig : BenchmarkConfig
     {
-        public DotnetHttp11EndpointConfig()
+        public DotnetHttp11EndpointConfig(string hostname)
         {
             this.DegreeOfParallelism = 5;
-            this.EndPoint = "https://localhost:7070/";
+            this.EndPoint = $"https://{hostname}:7070/";
             this.IterationCount = 1000000;
             this.WorkloadType = "Echo11Server"; 
             this.Database = "db1";
@@ -172,10 +176,10 @@ namespace CosmosBenchmark
 
     internal class ReactorHttp2EndpointConfig : BenchmarkConfig
     {
-        public ReactorHttp2EndpointConfig()
+        public ReactorHttp2EndpointConfig(string hostname)
         {
             this.DegreeOfParallelism = 5;
-            this.EndPoint = "https://localhost:8080/";
+            this.EndPoint = $"https://{hostname}:8080/";
             this.IterationCount = 1000000;
             this.WorkloadType = "Echo20Server"; ;
             this.Database = "db1";
@@ -186,10 +190,10 @@ namespace CosmosBenchmark
 
     internal class DotnetHttp2EndpointConfig : BenchmarkConfig
     {
-        public DotnetHttp2EndpointConfig()
+        public DotnetHttp2EndpointConfig(string hostname)
         {
             this.DegreeOfParallelism = 5;
-            this.EndPoint = "https://localhost:8080/";
+            this.EndPoint = $"https://{hostname}:8080/";
             this.IterationCount = 1000000;
             this.WorkloadType = "Echo20Server"; ;
             this.Database = "db1";
@@ -200,10 +204,10 @@ namespace CosmosBenchmark
 
     internal class DotnetHttp3EndpointConfig : BenchmarkConfig
     {
-        public DotnetHttp3EndpointConfig()
+        public DotnetHttp3EndpointConfig(string hostname)
         {
             this.DegreeOfParallelism = 5;
-            this.EndPoint = "https://localhost:9090/";
+            this.EndPoint = $"https://{hostname}:9090/";
             this.IterationCount = 1000000;
             this.WorkloadType = "Echo30Server";
             this.Database = "db1";
