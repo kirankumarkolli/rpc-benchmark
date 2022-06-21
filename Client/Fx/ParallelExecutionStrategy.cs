@@ -73,12 +73,13 @@ namespace CosmosBenchmark
                         completionCallback: () => Interlocked.Decrement(ref this.pendingExecutorCount));
             }
 
-            return await this.LogOutputStatsAndBlockedWait(executors, bWarmpup);
+            return await this.LogOutputStatsAndBlockedWait(executors, bWarmpup, serialExecutorIterationCount);
         }
 
         private async Task<RunSummary> LogOutputStatsAndBlockedWait(
             IExecutor[] executors,
-            bool bWarmpup)
+            bool bWarmpup,
+            int serialExecutorIterationCount)
         {
             const int outputLoopDelayInSeconds = 1;
             IList<int> perLoopCounters = new List<int>();
@@ -135,6 +136,8 @@ namespace CosmosBenchmark
                 int[] summaryCounters = perLoopCounters.OrderByDescending(e => e).ToArray();
 
                 RunSummary runSummary = new RunSummary();
+                runSummary.Concurrency = executors.Count();
+                runSummary.TotalOps = serialExecutorIterationCount;
 
                 Console.WriteLine();
                 Utility.TeeTraceInformation($"After Excluding outliers: {summaryCounters.First()} {summaryCounters.Last()}");

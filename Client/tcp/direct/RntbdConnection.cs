@@ -658,15 +658,17 @@ namespace Microsoft.Azure.Documents
             // the server is using
             Guid responseActivityId = new Guid(responseActivityIdBytes);
 
-            using (MemoryStream readStream = new MemoryStream(metadata))
+            RntbdConstants.ConnectionContextResponse response = null;
+            void deSerialize()
             {
-                RntbdConstants.ConnectionContextResponse response = null;
-                using (BinaryReader reader = new BinaryReader(readStream))
-                {
-                    response = new RntbdConstants.ConnectionContextResponse();
-                    response.ParseFrom(reader);
-                }
+                BytesDeserializer reader = new BytesDeserializer(metadata, metadata.Length);
+                response = new RntbdConstants.ConnectionContextResponse();
+                response.ParseFrom(ref reader);
+            }
 
+            deSerialize();
+
+            {
                 this.serverAgent = BytesSerializer.GetStringFromBytes(response.serverAgent.value.valueBytes);
                 this.serverVersion = BytesSerializer.GetStringFromBytes(response.serverVersion.value.valueBytes);
 
@@ -811,14 +813,15 @@ namespace Microsoft.Azure.Documents
             Guid responseActivityId = new Guid(responseActivityIdBytes);
 
             RntbdConstants.Response response = null;
-            using (MemoryStream readStream = new MemoryStream(metadata))
+
+            void deSerialize()
             {
-                using (BinaryReader reader = new BinaryReader(readStream, Encoding.UTF8))
-                {
-                    response = new RntbdConstants.Response();
-                    response.ParseFrom(reader);
-                }
+                BytesDeserializer reader = new BytesDeserializer(metadata, metadata.Length);
+                response = new RntbdConstants.Response();
+                response.ParseFrom(ref reader);
             }
+
+            deSerialize();
 
             MemoryStream bodyStream = null;
             if (response.payloadPresent.value.valueByte != (byte)0x00)

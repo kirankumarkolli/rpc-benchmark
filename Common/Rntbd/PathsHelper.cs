@@ -410,17 +410,17 @@ namespace Microsoft.Azure.Documents
             }
         }
 
-        public static string GeneratePath(ResourceType resourceType, DocumentServiceRequest request, bool isFeed, bool notRequireValidation = false)
-        {
-            if (request.IsNameBased)
-            {
-                return PathsHelper.GeneratePathForNameBased(resourceType, request.ResourceAddress, isFeed, request.OperationType, notRequireValidation);
-            }
-            else
-            {
-                return PathsHelper.GeneratePath(resourceType, request.ResourceId, isFeed, request.OperationType);
-            }
-        }
+        //public static string GeneratePath(ResourceType resourceType, DocumentServiceRequest request, bool isFeed, bool notRequireValidation = false)
+        //{
+        //    if (request.IsNameBased)
+        //    {
+        //        return PathsHelper.GeneratePathForNameBased(resourceType, request.ResourceAddress, isFeed, request.OperationType, notRequireValidation);
+        //    }
+        //    else
+        //    {
+        //        return PathsHelper.GeneratePath(resourceType, request.ResourceId, isFeed, request.OperationType);
+        //    }
+        //}
 
         public static string GenerateUserDefinedTypePath(string databaseName, string typeName)
         {

@@ -133,7 +133,7 @@ namespace CosmosBenchmark
         public TcpServerEndpointConfig()
         {
             this.DegreeOfParallelism = 5;
-            this.EndPoint = "https://127.0.0.1:8009/";
+            this.EndPoint = "https://localhost:8009/";
             this.IterationCount = 1000000;
             this.WorkloadType = "TcpServer";
             this.Database = "db1";

@@ -79,7 +79,7 @@ namespace Microsoft.Azure.Documents.Rntbd
             TransportSerialization.AddCollectionChildResourceNameLimitInBytes(request, rntbdRequest);
             TransportSerialization.AddCollectionChildResourceContentLengthLimitInKB(request, rntbdRequest);
             TransportSerialization.AddUniqueIndexNameEncodingMode(request, rntbdRequest);
-            TransportSerialization.AddStartUniqueIndexReIndex(request, rntbdRequest);
+            //TransportSerialization.AddStartUniqueIndexReIndex(request, rntbdRequest);
             TransportSerialization.AddPopulateCollectionThroughputInfo(request, rntbdRequest);
             TransportSerialization.AddShareThroughput(request, rntbdRequest);
             TransportSerialization.AddIsReadOnlyScript(request, rntbdRequest);
@@ -1326,22 +1326,22 @@ namespace Microsoft.Azure.Documents.Rntbd
             }
         }
 
-        private static void AddStartUniqueIndexReIndex(DocumentServiceRequest request, RntbdConstants.Request rntbdRequest)
-        {
-            string headerValue = request.Headers[WFConstants.BackendHeaders.StartUniqueIndexReIndex];
-            if (!string.IsNullOrEmpty(headerValue))
-            {
-                if (!Byte.TryParse(headerValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out rntbdRequest.startUniqueIndexReIndex.value.valueByte))
-                {
-                    throw new BadRequestException(String.Format(CultureInfo.CurrentUICulture,
-                        RMResources.InvalidHeaderValue,
-                        headerValue,
-                        WFConstants.BackendHeaders.StartUniqueIndexReIndex));
-                }
+        // private static void AddStartUniqueIndexReIndex(DocumentServiceRequest request, RntbdConstants.Request rntbdRequest)
+        // {
+        //     string headerValue = request.Headers[WFConstants.BackendHeaders.StartUniqueIndexReIndex];
+        //     if (!string.IsNullOrEmpty(headerValue))
+        //     {
+        //         if (!Byte.TryParse(headerValue, NumberStyles.Integer, CultureInfo.InvariantCulture, out rntbdRequest.startUniqueIndexReIndex.value.valueByte))
+        //         {
+        //             throw new BadRequestException(String.Format(CultureInfo.CurrentUICulture,
+        //                 RMResources.InvalidHeaderValue,
+        //                 headerValue,
+        //                 WFConstants.BackendHeaders.StartUniqueIndexReIndex));
+        //         }
 
-                rntbdRequest.startUniqueIndexReIndex.isPresent = true;
-            }
-        }
+        //         rntbdRequest.startUniqueIndexReIndex.isPresent = true;
+        //     }
+        // }
 
         private static void AddCollectionRemoteStorageSecurityIdentifier(DocumentServiceRequest request, RntbdConstants.Request rntbdRequest)
         {

@@ -264,7 +264,7 @@ namespace Microsoft.Azure.Documents.Rntbd
         {
             this.ThrowIfDisposed();
             await this.OpenSocketAsync(args);
-            // await this.NegotiateSslAsync(args);
+            await this.NegotiateSslAsync(args);
         }
 
         // This method is thread safe.
@@ -593,10 +593,9 @@ namespace Microsoft.Azure.Documents.Rntbd
                 userCertificateValidationCallback:
                     (object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors) =>
                     {
-                        Console.WriteLine("Cert validation called");
+                        //Console.WriteLine("Cert validation called");
                         return true;
-                    }
-                    );
+                    });
 
             try
             {
@@ -604,7 +603,10 @@ namespace Microsoft.Azure.Documents.Rntbd
                     TransportErrorCode.SslNegotiationTimeout);
                 this.UpdateLastSendAttemptTime();
 
-                await sslStream.AuthenticateAsClientAsync(host, clientCertificates: null,
+                await sslStream.AuthenticateAsClientAsync(
+                    host, 
+                    clientCertificates: null,
+                    enabledSslProtocols: SslProtocols.Tls12 | SslProtocols.Tls13 | SslProtocols.Ssl2 | SslProtocols.Ssl3 | SslProtocols.Tls11,
                     checkCertificateRevocation: false);
 
                 this.UpdateLastSendTime();
