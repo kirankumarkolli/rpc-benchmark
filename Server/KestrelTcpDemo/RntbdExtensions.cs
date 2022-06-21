@@ -48,7 +48,7 @@ namespace KestrelTcpDemo
             {
                 listenOptions.Protocols = HttpProtocols.None;
                 listenOptions.UseConnectionHandler<Rntbd2ConnectionHandler>();
-                listenOptions.UseHttps();
+                //listenOptions.UseHttps();
                 listenOptions.UseConnectionLogging();
             });
         }

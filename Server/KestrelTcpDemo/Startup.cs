@@ -31,77 +31,79 @@ namespace KestrelTcpDemo
         {
             //app.UseDeveloperExceptionPage();
 
-            app.UseRouting();
+            //app.UseRouting();
 
-            app.UseEndpoints(endpoints =>
-            {
-                endpoints.MapGet("/dbs/{dbId}/colls/{collId}/docs/{docId}", async (string dbId, string collId, string docId, HttpContext context) =>
-                {
-                    if (dbId == null || collId == null || docId == null)
-                    {
-                        context.Response.StatusCode = 400;
-                        await context.Response.WriteAsync($"{DateTime.UtcNow.ToString()} : Incorrect addressing ({dbId}, {collId}, {docId}) ");
-                        return;
-                    }
 
-                    IHeaderDictionary inputHeaders = context.Request.Headers;
-                    if (inputHeaders != null)
-                    {
-                        StringValues authHeaderValue;
-                        StringValues dateHeaderValue;
 
-                        inputHeaders.TryGetValue("authorization", out authHeaderValue);
-                        inputHeaders.TryGetValue("x-ms-date", out dateHeaderValue);
+            //app.UseEndpoints(endpoints =>
+            //{
+            //    endpoints.MapGet("/dbs/{dbId}/colls/{collId}/docs/{docId}", async (string dbId, string collId, string docId, HttpContext context) =>
+            //    {
+            //        if (dbId == null || collId == null || docId == null)
+            //        {
+            //            context.Response.StatusCode = 400;
+            //            await context.Response.WriteAsync($"{DateTime.UtcNow.ToString()} : Incorrect addressing ({dbId}, {collId}, {docId}) ");
+            //            return;
+            //        }
 
-                        if (authHeaderValue.Count != 1
-                            || dateHeaderValue.Count != 1)
-                        {
-                            context.Response.StatusCode = 400;
-                            await context.Response.WriteAsync($"{DateTime.UtcNow.ToString()} , Missing headers (auth={authHeaderValue.FirstOrDefault()}, date={dateHeaderValue.FirstOrDefault()})");
-                            return;
-                        }
+            //        IHeaderDictionary inputHeaders = context.Request.Headers;
+            //        if (inputHeaders != null)
+            //        {
+            //            StringValues authHeaderValue;
+            //            StringValues dateHeaderValue;
 
-                        string authTokenValue = authHeaderValue.First().Trim();
-                        string xDateValue = dateHeaderValue.First().Trim();
+            //            inputHeaders.TryGetValue("authorization", out authHeaderValue);
+            //            inputHeaders.TryGetValue("x-ms-date", out dateHeaderValue);
 
-                        if (string.IsNullOrWhiteSpace(authTokenValue) || string.IsNullOrWhiteSpace(xDateValue))
-                        {
-                            context.Response.StatusCode = 400;
-                            await context.Response.WriteAsync($"{DateTime.UtcNow.ToString()} , Missing headers (auth={authHeaderValue.FirstOrDefault()}, date={dateHeaderValue.FirstOrDefault()})");
-                            return;
-                        }
+            //            if (authHeaderValue.Count != 1
+            //                || dateHeaderValue.Count != 1)
+            //            {
+            //                context.Response.StatusCode = 400;
+            //                await context.Response.WriteAsync($"{DateTime.UtcNow.ToString()} , Missing headers (auth={authHeaderValue.FirstOrDefault()}, date={dateHeaderValue.FirstOrDefault()})");
+            //                return;
+            //            }
 
-                        IComputeHash computeHash = context.RequestServices.GetService<IComputeHash>();
-                        if (computeHash == null)
-                        {
-                            throw new Exception("IComputeHash is not configured");
-                        }
+            //            string authTokenValue = authHeaderValue.First().Trim();
+            //            string xDateValue = dateHeaderValue.First().Trim();
 
-                        string expectedAuthValue = AuthorizationHelper.GenerateKeyAuthorizationCore("GET",
-                            dateHeaderValue,
-                            "docs",
-                            String.Format($"dbs/{dbId}/colls/{collId}/docs/{docId}"),
-                            computeHash);
+            //            if (string.IsNullOrWhiteSpace(authTokenValue) || string.IsNullOrWhiteSpace(xDateValue))
+            //            {
+            //                context.Response.StatusCode = 400;
+            //                await context.Response.WriteAsync($"{DateTime.UtcNow.ToString()} , Missing headers (auth={authHeaderValue.FirstOrDefault()}, date={dateHeaderValue.FirstOrDefault()})");
+            //                return;
+            //            }
 
-                        if (expectedAuthValue != authTokenValue)
-                        {
-                            //Console.WriteLine($"xDate: {xDateValue} expected: {expectedAuthValue} actual: {authTokenValue} ");
+            //            IComputeHash computeHash = context.RequestServices.GetService<IComputeHash>();
+            //            if (computeHash == null)
+            //            {
+            //                throw new Exception("IComputeHash is not configured");
+            //            }
 
-                            context.Response.StatusCode = 403;
-                            await context.Response.WriteAsync($"Auth validation failed ResourceId={context.Request.Path}, xDate={xDateValue}");
-                            return;
-                        }
+            //            string expectedAuthValue = AuthorizationHelper.GenerateKeyAuthorizationCore("GET",
+            //                dateHeaderValue,
+            //                "docs",
+            //                String.Format($"dbs/{dbId}/colls/{collId}/docs/{docId}"),
+            //                computeHash);
 
-                        context.Response.Headers.ContentLength = testPayload.Length;
-                        context.Response.Headers.Add(HttpConstants.HttpHeaders.RequestCharge, "1.0");
+            //            if (expectedAuthValue != authTokenValue)
+            //            {
+            //                //Console.WriteLine($"xDate: {xDateValue} expected: {expectedAuthValue} actual: {authTokenValue} ");
 
-                        PipeWriter pipeWriter = context.Response.BodyWriter;
-                        Memory<byte> outputBuffer = pipeWriter.GetMemory(testPayload.Length);
-                        testPayload.CopyTo(outputBuffer);
-                        pipeWriter.Advance(testPayload.Length);
-                    }
-                });
-            });
+            //                context.Response.StatusCode = 403;
+            //                await context.Response.WriteAsync($"Auth validation failed ResourceId={context.Request.Path}, xDate={xDateValue}");
+            //                return;
+            //            }
+
+            //            context.Response.Headers.ContentLength = testPayload.Length;
+            //            context.Response.Headers.Add(HttpConstants.HttpHeaders.RequestCharge, "1.0");
+
+            //            PipeWriter pipeWriter = context.Response.BodyWriter;
+            //            Memory<byte> outputBuffer = pipeWriter.GetMemory(testPayload.Length);
+            //            testPayload.CopyTo(outputBuffer);
+            //            pipeWriter.Advance(testPayload.Length);
+            //        }
+            //    });
+            //});
         }
     }
 }
