@@ -1,5 +1,7 @@
-﻿using Microsoft.Azure.Documents;
+﻿using Microsoft.Azure.Cosmos;
+using Microsoft.Azure.Documents;
 using Microsoft.Extensions.Primitives;
+using System.Globalization;
 
 namespace FE
 {
@@ -130,6 +132,24 @@ namespace FE
             {
                 return false;
             }
+
+            // TODO: Implement routing logic
+            string resourceId = request.Path.Value;
+            Microsoft.Azure.Documents.DocumentServiceRequest dsr = Microsoft.Azure.Documents.DocumentServiceRequest.CreateFromName(
+                    Microsoft.Azure.Documents.OperationType.Read,
+                    resourceFullName: resourceId, // ResourceId
+                    Microsoft.Azure.Documents.ResourceType.Document,
+                    Microsoft.Azure.Documents.AuthorizationTokenType.PrimaryMasterKey);
+
+            dsr.Headers[Microsoft.Azure.Documents.HttpConstants.HttpHeaders.XDate] = request.Headers[Microsoft.Azure.Documents.HttpConstants.HttpHeaders.XDate];
+
+            dsr.Headers[Microsoft.Azure.Documents.HttpConstants.HttpHeaders.Authorization] = request.Headers[Microsoft.Azure.Documents.HttpConstants.HttpHeaders.Authorization];
+
+            routing = (
+                new Uri("https://localhost:8001"),
+                dsr);
+
+            return true;
         }
     }
 }
