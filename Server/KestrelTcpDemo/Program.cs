@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Net;
+using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Hosting;
@@ -22,20 +23,42 @@ namespace KestrelTcpDemo
                 .ConfigureServices(services =>
                     {
                         // This shows how a custom framework could plug in an experience without using Kestrel APIs directly
-                        services.AddFramework(new IPEndPoint(IPAddress.Loopback, 8009));
+                        if (args != null && args.Length > 0)
+                        {
+                            services.AddFramework(new IPEndPoint(IPAddress.Any, 8009), args[0]);
+                        }
+                        else
+                        {
+                            services.AddFramework(new IPEndPoint(IPAddress.Any, 8009), null);
+                        }
                     })
                 .UseKestrel(options =>
                     {
-                        options.ListenLocalhost(7070, listenOptions =>
+                        options.ListenAnyIP(7070, listenOptions =>
                             {
                                 listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1;
-                                listenOptions.UseHttps();
+
+                                if (args != null && args.Length > 0)
+                                {
+                                    listenOptions.UseHttps(StoreName.My, args[0], true, StoreLocation.LocalMachine);
+                                }
+                                else
+                                {
+                                    listenOptions.UseHttps();
+                                }
                             });
 
-                        options.ListenLocalhost(8080, listenOptions =>
+                        options.ListenAnyIP(8080, listenOptions =>
                             {
                                 listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
-                                listenOptions.UseHttps();
+                                if (args != null && args.Length > 0)
+                                {
+                                    listenOptions.UseHttps(StoreName.My, args[0], true, StoreLocation.LocalMachine);
+                                }
+                                else
+                                {
+                                    listenOptions.UseHttps();
+                                }
                             });
 
                         // HTTP3

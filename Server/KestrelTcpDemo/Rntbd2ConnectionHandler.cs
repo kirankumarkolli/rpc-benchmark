@@ -22,6 +22,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using static Microsoft.Azure.Documents.RntbdConstants;
 using Kestrel.Clone;
+using System.Collections.Concurrent;
 
 namespace KestrelTcpDemo
 {
@@ -29,6 +30,7 @@ namespace KestrelTcpDemo
     internal class Rntbd2ConnectionHandler : ConnectionHandler
     {
         private readonly Func<Stream, SslStream> _sslStreamFactory;
+        private static ConcurrentDictionary<string, X509Certificate2> cachedCerts = new ConcurrentDictionary<string, X509Certificate2>();
 
         private readonly IComputeHash computeHash;
         internal static readonly string AuthKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
@@ -64,7 +66,7 @@ namespace KestrelTcpDemo
 
         internal static X509Certificate2 GetServerCertificate(string serverName)
         {
-            X509Store store = new X509Store("MY", StoreLocation.CurrentUser);
+            X509Store store = new X509Store("MY", StoreLocation.LocalMachine);
             store.Open(OpenFlags.ReadOnly | OpenFlags.OpenExistingOnly);
 
 
@@ -85,12 +87,23 @@ namespace KestrelTcpDemo
 
         private async Task DoOptionsBasedHandshakeAsync(ConnectionContext context, SslStream sslStream, CancellationToken cancellationToken)
         {
-            var serverCert = GetServerCertificate("localhost");
+            //var serverCert = GetServerCertificate("backend-fake");
             var sslOptions = new SslServerAuthenticationOptions
             {
-                ServerCertificate = GetServerCertificate("localhost"),
-                //ServerCertificateSelectionCallback = (object sender, string? hostName) => GetServerCertificate(hostName),
-                ServerCertificateContext = SslStreamCertificateContext.Create(serverCert, additionalCertificates: null),
+                //ServerCertificate = serverCert,
+                ServerCertificateSelectionCallback = (object sender, string? hostName) =>
+                {
+                    if (cachedCerts.TryGetValue(hostName, out X509Certificate2 cachedCert))
+                    {
+                        return cachedCert;
+                    }
+
+
+                    X509Certificate2 newCert = GetServerCertificate(hostName);
+                    cachedCerts.TryAdd(hostName, newCert);
+                    return newCert;
+                },
+                //ServerCertificateContext = SslStreamCertificateContext.Create(serverCert, additionalCertificates: null),
                 ClientCertificateRequired = false,
                 EnabledSslProtocols = SslProtocols.Tls12,
                 CertificateRevocationCheckMode = X509RevocationMode.NoCheck,

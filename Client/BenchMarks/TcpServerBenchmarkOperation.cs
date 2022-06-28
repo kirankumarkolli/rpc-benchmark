@@ -7,6 +7,7 @@ namespace CosmosBenchmark
     using System;
     using System.Collections.Generic;
     using System.Globalization;
+    using System.IO;
     using System.Linq;
     using System.Net;
     using System.Text;
@@ -17,6 +18,7 @@ namespace CosmosBenchmark
 
     internal class TcpServerBenchmarkOperation : IBenchmarkOperation
     {
+        private static readonly byte[] buffer = new byte[4096];
         private readonly TransportClient tcpTransportClient;
         private readonly Uri requestUri;
 
@@ -63,7 +65,10 @@ namespace CosmosBenchmark
                 }
 
                 // drain response
-                using (storeResponse.ResponseBody) ;
+                using (Stream payload = storeResponse.ResponseBody)
+                {
+                    while (await payload.ReadAsync(buffer, 0, 4096) > 0) { }
+                }
             }
         }
 
