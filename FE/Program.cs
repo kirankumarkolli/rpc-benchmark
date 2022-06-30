@@ -7,7 +7,6 @@ using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Documents;
 using System.IO.Pipelines;
 
-string authKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
 int maxConnectionsPerServer = 30;
 if (Environment.GetCommandLineArgs().Count() > 1
      && int.TryParse(Environment.GetCommandLineArgs()[1], out maxConnectionsPerServer))
