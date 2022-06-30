@@ -15,6 +15,7 @@ namespace CosmosBenchmark
 
     internal class Echo30ServerBenchmarkOperation : IBenchmarkOperation
     {
+        private static readonly byte[] buffer = new byte[4096];
         private HttpClient client;
         private readonly string requestUri;
         private IComputeHash authKeyHashFunction;
@@ -59,6 +60,7 @@ namespace CosmosBenchmark
                     // Drain the response
                     using (Stream payload = await responseMessage.Content.ReadAsStreamAsync())
                     {
+                        while (await payload.ReadAsync(buffer, 0, 4096) > 0) { }
                     }
                 }
             }

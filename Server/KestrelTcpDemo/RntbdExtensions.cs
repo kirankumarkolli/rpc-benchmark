@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.IO.Pipelines;
 using System.Net;
 using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Connections;
@@ -20,13 +21,14 @@ namespace KestrelTcpDemo
 {
     public static class RntbdExtensions
     {
-        public static IServiceCollection AddFramework(this IServiceCollection services, IPEndPoint endPoint)
+        public static IServiceCollection AddFramework(this IServiceCollection services, IPEndPoint endPoint, String sslCertSubject)
         {
             services.TryAddEnumerable(ServiceDescriptor.Singleton<IConfigureOptions<KestrelServerOptions>, Rntbd2OptionsSetup>());
 
             services.Configure<Rntbd2OptionsSetup.Rntbd2Options>(o =>
             {
                 o.EndPoint = endPoint;
+                o.SslCertSubject = sslCertSubject;
             });
 
             return services;
@@ -44,11 +46,22 @@ namespace KestrelTcpDemo
 
         public void Configure(KestrelServerOptions options)
         {
-            options.ListenLocalhost(_options.EndPoint.Port, listenOptions =>
+            options.ListenAnyIP(_options.EndPoint.Port, listenOptions =>
             {
                 listenOptions.Protocols = HttpProtocols.None;
                 listenOptions.UseConnectionHandler<Rntbd2ConnectionHandler>();
-                //listenOptions.UseHttps();
+                if (!String.IsNullOrWhiteSpace(_options.SslCertSubject))
+                {
+                    listenOptions.UseHttps(
+                        StoreName.My,
+                        _options.SslCertSubject,
+                        true,
+                        StoreLocation.LocalMachine);
+                }
+                else
+                {
+                    listenOptions.UseHttps();
+                }
                 listenOptions.UseConnectionLogging();
             });
         }
@@ -57,6 +70,8 @@ namespace KestrelTcpDemo
         public class Rntbd2Options
         {
             public IPEndPoint EndPoint { get; set; }
+
+            public string SslCertSubject { get; set; }
         }
     }
 }
