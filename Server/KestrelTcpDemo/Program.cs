@@ -69,7 +69,7 @@ namespace KestrelTcpDemo
                 //        //            listenOptions.UseHttps();
                 //        //        }
                 //        //    );
-                //    })
+                    })
                 .ConfigureLogging((context, loggingBuilder) => 
                     {
                         loggingBuilder.ClearProviders();
