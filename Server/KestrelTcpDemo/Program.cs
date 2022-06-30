@@ -12,8 +12,8 @@ namespace KestrelTcpDemo
     {
         public static void Main(string[] args)
         {
-            //AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
-            //AppContext.SetSwitch("System.Net.SocketsHttpHandler.Http3Support", true);
+            AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
+            AppContext.SetSwitch("System.Net.SocketsHttpHandler.Http3Support", true);
 
             CreateWebHostBuilder(args).Build().Run();
         }
@@ -61,14 +61,14 @@ namespace KestrelTcpDemo
                                 }
                             });
 
-                //        // HTTP3
-                //        //options.ListenLocalhost(9090,
-                //        //    listenOptions => 
-                //        //        { 
-                //        //            listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http3;
-                //        //            listenOptions.UseHttps();
-                //        //        }
-                //        //    );
+                        // HTTP3
+                        //options.ListenLocalhost(9090,
+                        //    listenOptions => 
+                        //        { 
+                        //            listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http3;
+                        //            listenOptions.UseHttps();
+                        //        }
+                        //    );
                     })
                 .ConfigureLogging((context, loggingBuilder) => 
                     {
