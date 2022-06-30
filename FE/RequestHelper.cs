@@ -38,52 +38,34 @@ namespace FE
             ReadOnlySpan<char> container = ReadOnlySpan<char>.Empty;
             ReadOnlySpan<char> documentId = ReadOnlySpan<char>.Empty;
             ReadOnlySpan<char> partitionKeyValue = ReadOnlySpan<char>.Empty;
-            // dbs/{db}/colls/{container}/docs/{id}
+            // /dbs/{db}/colls/{container}/docs/{id}
 
             while ((nextIndex = path.Slice(currentIndex).IndexOf('/')) > -1)
             {
-                value = path.Slice(currentIndex, nextIndex - currentIndex);
+                value = path.Slice(currentIndex, nextIndex);
+                currentIndex += nextIndex + 1;
+                if (string.Empty.AsSpan().CompareTo(value, StringComparison.InvariantCultureIgnoreCase) == 0)
+                {
+                    continue;
+                }
+
                 if (database.IsEmpty)
                 {
-                    if (value != "dbs".AsSpan())
+                    if ("dbs".AsSpan().CompareTo(value, StringComparison.InvariantCultureIgnoreCase) != 0)
                     {
                         database = value;
                     }
                 }
                 else if (container.IsEmpty)
                 {
-                    if (value != "colls".AsSpan())
+                    if ("colls".AsSpan().CompareTo(value, StringComparison.InvariantCultureIgnoreCase) != 0)
                     {
                         container = value;
                     }
                 }
-
-                currentIndex = ++nextIndex;
             }
 
-            value = path.Slice(currentIndex, nextIndex - currentIndex);
-
-            if (database.IsEmpty)
-            {
-                if (value != "dbs".AsSpan())
-                {
-                    database = value;
-                }
-            }
-            else if (container.IsEmpty)
-            {
-                if (value != "colls".AsSpan())
-                {
-                    container = value;
-                }
-            }
-            else if (documentId.IsEmpty)
-            {
-                if (value != "docs".AsSpan())
-                {
-                    documentId = value;
-                }
-            }
+            documentId = path.Slice(currentIndex);
 
             if (request.Headers.TryGetValue(Microsoft.Azure.Documents.HttpConstants.HttpHeaders.PartitionKey, out StringValues partitionKey))
             {
@@ -97,7 +79,7 @@ namespace FE
                     partitionKeyValue
                 );
 
-            return false;
+            return true;
         }
 
         public static TransportClient CreateTcpClient(int maxConnectionsPerServer)
@@ -145,6 +127,7 @@ namespace FE
 
             dsr.Headers[Microsoft.Azure.Documents.HttpConstants.HttpHeaders.Authorization] = request.Headers[Microsoft.Azure.Documents.HttpConstants.HttpHeaders.Authorization];
 
+            // TODO: Routing to a single endpoint for testing purposes
             routing = (
                 new Uri("https://localhost:8001"),
                 dsr);
