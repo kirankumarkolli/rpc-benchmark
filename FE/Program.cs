@@ -27,8 +27,6 @@ builder.WebHost.ConfigureKestrel((context, options) =>
     });
 });
 
-builder.Services.AddSingleton<IComputeHash>((sp) => new StringHMACSHA256Hash(authKey));
-
 var app = builder.Build();
 
 app.Run(async context =>
