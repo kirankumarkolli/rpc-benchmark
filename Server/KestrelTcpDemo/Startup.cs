@@ -24,6 +24,7 @@ namespace KestrelTcpDemo
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddSingleton<IComputeHash>((sp) => new StringHMACSHA256Hash(Rntbd2ConnectionHandler.AuthKey));
+            services.AddSingleton<CosmosClient>((sp) => new CosmosClient("https://localhost:8081/", Rntbd2ConnectionHandler.AuthKey));
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -49,11 +50,14 @@ namespace KestrelTcpDemo
                     {
                         StringValues authHeaderValue;
                         StringValues dateHeaderValue;
+                        StringValues partitionKeyValue;
 
                         inputHeaders.TryGetValue("authorization", out authHeaderValue);
                         inputHeaders.TryGetValue("x-ms-date", out dateHeaderValue);
+                        inputHeaders.TryGetValue("x-ms-documentdb-partitionkey", out partitionKeyValue);
 
                         if (authHeaderValue.Count != 1
+                            && partitionKeyValue.Count != 1
                             || dateHeaderValue.Count != 1)
                         {
                             context.Response.StatusCode = 400;
@@ -63,42 +67,40 @@ namespace KestrelTcpDemo
 
                         string authTokenValue = authHeaderValue.First().Trim();
                         string xDateValue = dateHeaderValue.First().Trim();
+                        string partitionKey = partitionKeyValue.First().Trim();
 
-                        if (string.IsNullOrWhiteSpace(authTokenValue) || string.IsNullOrWhiteSpace(xDateValue))
+                        if (string.IsNullOrWhiteSpace(authTokenValue) 
+                            || string.IsNullOrWhiteSpace(xDateValue)
+                            || string.IsNullOrWhiteSpace(partitionKey))
                         {
                             context.Response.StatusCode = 400;
                             await context.Response.WriteAsync($"{DateTime.UtcNow.ToString()} , Missing headers (auth={authHeaderValue.FirstOrDefault()}, date={dateHeaderValue.FirstOrDefault()})");
                             return;
                         }
 
-                        IComputeHash computeHash = context.RequestServices.GetService<IComputeHash>();
-                        if (computeHash == null)
+                        CosmosClient cosmosClient = context.RequestServices.GetService<CosmosClient>();
+                        Container container = cosmosClient.GetDatabase(dbId).GetContainer(collId);
+                        using (ResponseMessage responseMessage = await container.ReadItemStreamAsync(docId,
+                            new PartitionKey(partitionKey),
+                            requestOptions: new ItemRequestOptions()
+                            {
+                                AddRequestHeaders = (headers) =>
+                                {
+                                    headers.Add("authorization", authTokenValue);
+                                    headers.Add("x-ms-date", xDateValue);
+                                }
+                            }))
                         {
-                            throw new Exception("IComputeHash is not configured");
+                            foreach(string key in responseMessage.Headers.AllKeys())
+                            {
+                                context.Response.Headers.Add(key, responseMessage.Headers[key]);
+                            }
+
+                            PipeWriter pipeWriter = context.Response.BodyWriter;
+                            Memory<byte> outputBuffer = pipeWriter.GetMemory((int)responseMessage.Content.Length);
+                            responseMessage.Content.CopyTo(outputBuffer);
+                            pipeWriter.Advance(testPayload.Length);
                         }
-
-                        string expectedAuthValue = AuthorizationHelper.GenerateKeyAuthorizationCore("GET",
-                            dateHeaderValue,
-                            "docs",
-                            String.Format($"dbs/{dbId}/colls/{collId}/docs/{docId}"),
-                            computeHash);
-
-                        if (expectedAuthValue != authTokenValue)
-                        {
-                            //Console.WriteLine($"xDate: {xDateValue} expected: {expectedAuthValue} actual: {authTokenValue} ");
-
-                            context.Response.StatusCode = 403;
-                            await context.Response.WriteAsync($"Auth validation failed ResourceId={context.Request.Path}, xDate={xDateValue}");
-                            return;
-                        }
-
-                        context.Response.Headers.ContentLength = testPayload.Length;
-                        context.Response.Headers.Add(HttpConstants.HttpHeaders.RequestCharge, "1.0");
-
-                        PipeWriter pipeWriter = context.Response.BodyWriter;
-                        Memory<byte> outputBuffer = pipeWriter.GetMemory(testPayload.Length);
-                        testPayload.CopyTo(outputBuffer);
-                        pipeWriter.Advance(testPayload.Length);
                     }
                 });
             });

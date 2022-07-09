@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "CosmosBenchmark": {
+      "commandName": "Project",
+      "commandLineArgs": "-w DotnetRntbd2 -c 10 -m 1"
+    }
+  }
+}

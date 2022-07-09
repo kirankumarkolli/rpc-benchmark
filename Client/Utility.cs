@@ -61,7 +61,7 @@ namespace CosmosBenchmark
                 {
                     MaxChannels = maxConnectionsPerServer,
                     PartitionCount = 8,
-                    MaxRequestsPerChannel = 10,
+                    MaxRequestsPerChannel = 20,
                     //PortReuseMode = PortReuseMode.,
                     //PortPoolReuseThreshold = rntbdPortPoolReuseThreshold,
                     //PortPoolBindAttempts = rntbdPortPoolBindAttempts,
