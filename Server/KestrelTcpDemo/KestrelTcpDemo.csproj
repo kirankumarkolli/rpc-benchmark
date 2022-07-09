@@ -3,26 +3,20 @@
   <PropertyGroup>
     <TargetFramework>net7.0</TargetFramework>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
-	  
-	<!-- Http3 is in preview -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <DefineConstants>$(DefineConstants)TRACE;COSMOSCLIENT</DefineConstants>
+
+    <!-- Http3 is in preview -->
 	<EnablePreviewFeatures>True</EnablePreviewFeatures>
   </PropertyGroup>
 
-	<ItemGroup>
-		<Compile Include="..\..\Common\**\*.cs">
-			<Link>Rntbd\%(RecursiveDir)%(FileName)%(Extension)</Link>			
-		</Compile>
-	</ItemGroup>
-
-	<ItemGroup>
-	  <PackageReference Include="Newtonsoft.Json" Version="13.0.2-beta1" />
-	</ItemGroup>	
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
-    <DefineConstants>$(DefineConstants)TRACE;COSMOSCLIENT</DefineConstants>
-  </PropertyGroup>
-
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
-    <DefineConstants>$(DefineConstants)TRACE;COSMOSCLIENT</DefineConstants>
-  </PropertyGroup>
+  <ItemGroup>
+  	<Compile Include="..\..\Common\**\*.cs">
+  	  <Link>Rntbd\%(RecursiveDir)%(FileName)%(Extension)</Link>			
+  	</Compile>
+  </ItemGroup>
+  
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.2-beta1" />
+  </ItemGroup>
 </Project>
