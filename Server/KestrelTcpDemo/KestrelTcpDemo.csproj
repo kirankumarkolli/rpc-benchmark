@@ -9,7 +9,9 @@
   </PropertyGroup>
 
 	<ItemGroup>
-		<Compile Include="..\..\Common\**\*.cs" />
+		<Compile Include="..\..\Common\**\*.cs">
+			<Link>Rntbd\%(RecursiveDir)%(FileName)%(Extension)</Link>			
+		</Compile>
 	</ItemGroup>
 
 	<ItemGroup>

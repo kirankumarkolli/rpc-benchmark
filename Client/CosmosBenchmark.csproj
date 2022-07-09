@@ -15,7 +15,9 @@
   </PropertyGroup>
 	
 	<ItemGroup>
-		<Compile Include="..\Common\Rntbd\*.cs" />
+		<Compile Include="..\Common\Rntbd\*.cs">
+			<Link>Rntbd\%(RecursiveDir)%(FileName)%(Extension)</Link>			
+		</Compile>
 	</ItemGroup>
 	<ItemGroup>
     <None Include="Player.json">

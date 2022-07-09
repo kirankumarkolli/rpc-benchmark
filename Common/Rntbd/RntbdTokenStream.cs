@@ -87,7 +87,7 @@ namespace Microsoft.Azure.Documents
         private static int[] GetTokenPositions(RntbdToken[] t)
         {
             Debug.Assert(t != null);
-            TokenPositionMap = new int[t.Select(e => e.GetTokenIdentifier()).Max()];
+            TokenPositionMap = new int[t.Select(e => e.GetTokenIdentifier()).Max() + 1];
 
             Dictionary<ushort, int> tokenPositions = new Dictionary<ushort, int>(t.Length);
             for (int i = 0; i < t.Length; i++)
