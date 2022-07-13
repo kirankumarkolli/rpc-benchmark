@@ -23,12 +23,20 @@ namespace CosmosBenchmark
     using static Microsoft.Azure.Documents.RntbdConstants;
     using System.Buffers;
     using Microsoft.Azure.Documents.Rntbd;
+    using System.Globalization;
+    using Microsoft.Azure.Cosmos;
+    using System.Runtime.InteropServices;
 
     internal class CosmosDuplexPipe : IDuplexPipe, IDisposable
     {
         private readonly NetworkStream stream;
         private readonly PipeReader pipeReader;
         private readonly PipeWriter pipeWriter;
+
+        private int nextRequestId = 0;
+
+        static readonly string authKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
+        private readonly IComputeHash authKeyHashFunction = new StringHMACSHA256Hash(authKey);
 
         private static readonly Lazy<ConcurrentPrng> rng =
             new Lazy<ConcurrentPrng>(LazyThreadSafetyMode.ExecutionAndPublication);
@@ -62,6 +70,100 @@ namespace CosmosBenchmark
                 addressIndex = rng.Value.Next(serverAddresses.Length);
             }
             return serverAddresses[addressIndex];
+        }
+
+        public async Task ReadDocumentAsync(
+            string replicaPath,
+            string databaseName,
+            string contaienrName,
+            string itemName)
+        {
+            FlushResult flushResult = await this.SendReadRequestAsync(replicaPath, databaseName, contaienrName, itemName);
+
+            (int length, ReadResult readResult) = await ReadLengthPrefixedMessageFullToConsume(this.pipeReader);
+
+            // TODO: Incoming context validation 
+            // sizeof(UInt32) -> Length-prefix
+            // sizeof(UInt32) -> Status code
+            // 16 <- Activity id (hard coded)
+            int connectionContextOffet = sizeof(UInt32) + sizeof(UInt32) + BytesSerializer.GetSizeOfGuid();
+            uint statusCode = MemoryMarshal.Read<uint>(readResult.Buffer.FirstSpan.Slice(sizeof(UInt32)));
+            if (statusCode > 399)
+            {
+                throw new Exception($"Non success status code: {statusCode}");
+            }
+
+            byte[] deserializePayload = readResult.Buffer.Slice(connectionContextOffet, length - connectionContextOffet).ToArray();
+            RntbdConstants.Response response = new();
+            Deserialize(deserializePayload, response);
+        }
+
+        public ValueTask<FlushResult> SendReadRequestAsync(
+            string replicaPath, 
+            string databaseName, 
+            string contaienrName,
+            string itemName)
+        {
+            uint requestId = unchecked((uint)Interlocked.Increment(ref this.nextRequestId));
+            Guid activityId = Guid.NewGuid();
+
+            string resourceId = $"dbs/{databaseName}/colls/{contaienrName}/docs/{itemName}";
+
+            using TransportSerialization.RntbdRequestPool.RequestOwner owner = TransportSerialization.RntbdRequestPool.Instance.Get();
+            RntbdConstants.Request rntbdRequest = owner.Request;
+
+            rntbdRequest.replicaPath.value.valueBytes = BytesSerializer.GetBytesForString(replicaPath, rntbdRequest);
+            rntbdRequest.replicaPath.isPresent = true;
+
+            rntbdRequest.databaseName.value.valueBytes = BytesSerializer.GetBytesForString(databaseName, rntbdRequest);
+            rntbdRequest.databaseName.isPresent = true;
+
+            rntbdRequest.collectionName.value.valueBytes = BytesSerializer.GetBytesForString(contaienrName, rntbdRequest);
+            rntbdRequest.collectionName.isPresent = true;
+
+            rntbdRequest.documentName.value.valueBytes = BytesSerializer.GetBytesForString(itemName, rntbdRequest);
+            rntbdRequest.documentName.isPresent = true;
+
+            string dateHeaderValue = DateTime.UtcNow.ToString("r", CultureInfo.InvariantCulture);
+            rntbdRequest.date.value.valueBytes = BytesSerializer.GetBytesForString(dateHeaderValue, rntbdRequest);
+            rntbdRequest.date.isPresent = true;
+
+            string authorization = AuthorizationHelper.GenerateKeyAuthorizationCore("GET", dateHeaderValue, "docs", resourceId, authKeyHashFunction);
+            rntbdRequest.authorizationToken.value.valueBytes = BytesSerializer.GetBytesForString(authorization, rntbdRequest);
+            rntbdRequest.authorizationToken.isPresent = true;
+
+            rntbdRequest.transportRequestID.value.valueBytes = BytesSerializer.GetBytesForString(requestId.ToString(CultureInfo.InvariantCulture), rntbdRequest);
+            rntbdRequest.transportRequestID.isPresent = true;
+
+            rntbdRequest.payloadPresent.value.valueByte = 0x00;
+            rntbdRequest.payloadPresent.isPresent = true;
+
+            // Once all metadata tokens are set, we can calculate the length.
+            int metadataLength = (sizeof(uint) + sizeof(ushort) + sizeof(ushort) + BytesSerializer.GetSizeOfGuid());
+            int headerAndMetadataLength = metadataLength + rntbdRequest.CalculateLength(); // metadata tokens
+            int allocationLength = headerAndMetadataLength;
+
+            Memory<byte> bytes = this.pipeWriter.GetMemory(allocationLength);
+            BytesSerializer writer = new BytesSerializer(bytes.Span);
+
+            // header
+            writer.Write((uint)headerAndMetadataLength);
+            writer.Write((ushort)RntbdConstants.RntbdResourceType.Document);
+            writer.Write((ushort)RntbdConstants.RntbdOperationType.Read);
+            writer.Write(activityId);
+            int actualWritten = metadataLength;
+
+            // metadata
+            rntbdRequest.SerializeToBinaryWriter(ref writer, out int tokensLength);
+            actualWritten += tokensLength;
+
+            if (actualWritten != allocationLength)
+            {
+                throw new Exception($"Unexpected length mis-match actualWritten:{actualWritten} allocationLength:{allocationLength}");
+            }
+
+            this.pipeWriter.Advance(allocationLength);
+            return this.pipeWriter.FlushAsync();
         }
 
         public static async Task<CosmosDuplexPipe> Connect(Uri endpoint)

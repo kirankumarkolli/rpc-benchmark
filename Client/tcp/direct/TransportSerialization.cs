@@ -1763,7 +1763,7 @@ namespace Microsoft.Azure.Documents.Rntbd
             }
         }
 
-        private class RntbdRequestPool
+        internal class RntbdRequestPool
         {
             public static readonly RntbdRequestPool Instance = new RntbdRequestPool();
 
