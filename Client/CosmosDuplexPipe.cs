@@ -79,19 +79,22 @@ namespace CosmosBenchmark
             // tcpClient.Client.Blocking = false;
 
             var ns = tcpClient.GetStream();
-            var pipeWriter = PipeWriter.Create(ns, new StreamPipeWriterOptions(leaveOpen: true));
-
-            SslStream readerStream = new SslStream(
+            SslStream sslStream = new SslStream(
                 innerStream: ns,
                 leaveInnerStreamOpen: true,
-                userCertificateValidationCallback: (object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors) => true);
+                userCertificateValidationCallback: (object sender, X509Certificate? certificate, X509Chain? chain, SslPolicyErrors sslPolicyErrors) =>
+                        {
+                            return true;
+                        });
 
-            await readerStream.AuthenticateAsClientAsync(
+            await sslStream.AuthenticateAsClientAsync(
                 targetHost: endpoint.DnsSafeHost,
                 clientCertificates: null,
-                    enabledSslProtocols: SslProtocols.Tls12, checkCertificateRevocation: false);
+                enabledSslProtocols: SslProtocols.Tls12, 
+                checkCertificateRevocation: false);
 
-            var pipeReader = PipeReader.Create(readerStream, new StreamPipeReaderOptions(leaveOpen: true));
+            var pipeWriter = PipeWriter.Create(sslStream, new StreamPipeWriterOptions(leaveOpen: true));
+            var pipeReader = PipeReader.Create(sslStream, new StreamPipeReaderOptions(leaveOpen: true));
 
             CosmosDuplexPipe duplexPipe = new CosmosDuplexPipe(ns, pipeReader, pipeWriter);
             await CosmosDuplexPipe.NegotiateRntbdContext(duplexPipe);
@@ -108,7 +111,9 @@ namespace CosmosBenchmark
         }
 
         // TODO: Multi part length prefixed payload (ex: incoming payload like create etc...)
-        private static async ValueTask<(int, ReadResult)> ReadLengthPrefixedMessageFull(PipeReader pipeReader)
+        // Caller needs to advance the reader for length
+        //  TODO: Add message handler model to abstract out the consumption aspect's
+        private static async ValueTask<(int, ReadResult)> ReadLengthPrefixedMessageFullToConsume(PipeReader pipeReader)
         {
             int length = -1;
 
@@ -122,33 +127,34 @@ namespace CosmosBenchmark
 
                 if (buffer.Length < length) // Read at-least length (included length 4-bytes as well)
                 {
+                    pipeReader.AdvanceTo(buffer.Start, readResult.Buffer.End); // Not yet consumed
                     readResult = await pipeReader.ReadAtLeastAsync(length);
                 }
 
                 Debug.Assert(readResult.Buffer.Length >= length);
-                pipeReader.AdvanceTo(buffer.Start, readResult.Buffer.GetPosition(length));
             }
 
             if (length == -1 || readResult.Buffer.Length < length)
             {
                 // TODO: clean-up (for POC its fine)
-                throw new Exception($"{nameof(ReadLengthPrefixedMessageFull)} failed length: {length}, readResult.Buffer.Length: {readResult.Buffer.Length}");
+                throw new Exception($"{nameof(ReadLengthPrefixedMessageFullToConsume)} failed length: {length}, readResult.Buffer.Length: {readResult.Buffer.Length}");
             }
 
             return (length, readResult);
         }
 
+
         private static async Task NegotiateRntbdContext(CosmosDuplexPipe duplexPipe)
         {
             await duplexPipe.SendRntbdContext();
 
-            (int length, ReadResult readResult) = await ReadLengthPrefixedMessageFull(duplexPipe.Input);
+            (int length, ReadResult readResult) = await ReadLengthPrefixedMessageFullToConsume(duplexPipe.Input);
 
             // TODO: Incoming context validation 
             // sizeof(UInt32) -> Length-prefix
-            // sizeof(UInt16) -> Status code
+            // sizeof(UInt32) -> Status code
             // 16 <- Activity id (hard coded)
-            int connectionContextOffet = sizeof(UInt32) + sizeof(UInt16) + 16;
+            int connectionContextOffet = sizeof(UInt32) + sizeof(UInt32) + 16;
 
             byte[] deserializePayload = readResult.Buffer.Slice(connectionContextOffet, length - connectionContextOffet).ToArray();
             ConnectionContextResponse response = new ConnectionContextResponse();
