@@ -154,11 +154,14 @@ namespace CosmosBenchmark
             // sizeof(UInt32) -> Length-prefix
             // sizeof(UInt32) -> Status code
             // 16 <- Activity id (hard coded)
-            int connectionContextOffet = sizeof(UInt32) + sizeof(UInt32) + 16;
+            int connectionContextOffet = sizeof(UInt32) + sizeof(UInt32) + BytesSerializer.GetSizeOfGuid();
 
             byte[] deserializePayload = readResult.Buffer.Slice(connectionContextOffet, length - connectionContextOffet).ToArray();
             ConnectionContextResponse response = new ConnectionContextResponse();
             Deserialize(deserializePayload, response);
+
+            // ACK: Consumed (Broken abstraction :-( )
+            duplexPipe.Input.AdvanceTo(readResult.Buffer.GetPosition(length), readResult.Buffer.End);
         }
 
         private ValueTask<FlushResult> SendRntbdContext(
