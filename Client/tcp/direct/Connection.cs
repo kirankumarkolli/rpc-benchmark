@@ -891,7 +891,7 @@ namespace Microsoft.Azure.Documents.Rntbd
             return serverAddresses[addressIndex];
         }
 
-        private static void SetCommonSocketOptions(Socket clientSocket)
+        internal static void SetCommonSocketOptions(Socket clientSocket)
         {
             clientSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.NoDelay, true);
             Connection.EnableTcpKeepAlive(clientSocket);
