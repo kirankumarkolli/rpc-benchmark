@@ -76,9 +76,10 @@ namespace CosmosBenchmark
             string replicaPath,
             string databaseName,
             string contaienrName,
-            string itemName)
+            string itemName,
+            string partitionKey)
         {
-            FlushResult flushResult = await this.SendReadRequestAsync(replicaPath, databaseName, contaienrName, itemName);
+            FlushResult flushResult = await this.SendReadRequestAsync(replicaPath, databaseName, contaienrName, itemName, partitionKey);
 
             (int length, ReadResult readResult) = await ReadLengthPrefixedMessageFullToConsume(this.pipeReader);
 
@@ -96,13 +97,28 @@ namespace CosmosBenchmark
             byte[] deserializePayload = readResult.Buffer.Slice(connectionContextOffet, length - connectionContextOffet).ToArray();
             RntbdConstants.Response response = new();
             Deserialize(deserializePayload, response);
+
+            // ACK: Consumed (Broken abstraction :-( )
+            this.pipeReader.AdvanceTo(readResult.Buffer.GetPosition(length), readResult.Buffer.End);
+
+            if (response.payloadPresent.isPresent && response.payloadPresent.value.valueByte != 0x00)
+            {
+                // Payload is present 
+                (length, readResult) = await ReadLengthPrefixedMessageFullToConsume(this.pipeReader);
+
+                // TODO: Response buffer 
+
+                // ACK: Consumed (Broken abstraction :-( )
+                this.pipeReader.AdvanceTo(readResult.Buffer.GetPosition(length), readResult.Buffer.End);
+            }
         }
 
         public ValueTask<FlushResult> SendReadRequestAsync(
             string replicaPath, 
             string databaseName, 
             string contaienrName,
-            string itemName)
+            string itemName,
+            string partitionKey)
         {
             uint requestId = unchecked((uint)Interlocked.Increment(ref this.nextRequestId));
             Guid activityId = Guid.NewGuid();
@@ -111,6 +127,9 @@ namespace CosmosBenchmark
 
             using TransportSerialization.RntbdRequestPool.RequestOwner owner = TransportSerialization.RntbdRequestPool.Instance.Get();
             RntbdConstants.Request rntbdRequest = owner.Request;
+
+            rntbdRequest.partitionKey.value.valueBytes = BytesSerializer.GetBytesForString(partitionKey, rntbdRequest);
+            rntbdRequest.partitionKey.isPresent = true;
 
             rntbdRequest.replicaPath.value.valueBytes = BytesSerializer.GetBytesForString(replicaPath, rntbdRequest);
             rntbdRequest.replicaPath.isPresent = true;
