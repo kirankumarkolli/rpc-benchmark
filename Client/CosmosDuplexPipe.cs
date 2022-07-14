@@ -97,6 +97,20 @@ namespace CosmosBenchmark
             byte[] deserializePayload = readResult.Buffer.Slice(connectionContextOffet, length - connectionContextOffet).ToArray();
             RntbdConstants.Response response = new();
             Deserialize(deserializePayload, response);
+
+            // ACK: Consumed (Broken abstraction :-( )
+            this.pipeReader.AdvanceTo(readResult.Buffer.GetPosition(length), readResult.Buffer.End);
+
+            if (response.payloadPresent.isPresent && response.payloadPresent.value.valueByte != 0x00)
+            {
+                // Payload is present 
+                (length, readResult) = await ReadLengthPrefixedMessageFullToConsume(this.pipeReader);
+
+                // TODO: Response buffer 
+
+                // ACK: Consumed (Broken abstraction :-( )
+                this.pipeReader.AdvanceTo(readResult.Buffer.GetPosition(length), readResult.Buffer.End);
+            }
         }
 
         public ValueTask<FlushResult> SendReadRequestAsync(
