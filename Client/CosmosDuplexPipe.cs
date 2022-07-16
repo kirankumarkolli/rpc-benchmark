@@ -25,9 +25,8 @@ namespace CosmosBenchmark
     using Microsoft.Azure.Documents.Rntbd;
     using System.Globalization;
     using Microsoft.Azure.Cosmos;
-    using System.Runtime.InteropServices;
 
-    internal class CosmosDuplexPipe : IDuplexPipe, IDisposable
+    internal class CosmosDuplexPipe : IDisposable
     {
         private static readonly string AuthorizationFormatPrefixUrlEncoded = HttpUtility.UrlEncode(string.Format(CultureInfo.InvariantCulture, Constants.Properties.AuthorizationFormat,
                 Constants.Properties.MasterToken,
@@ -35,7 +34,7 @@ namespace CosmosBenchmark
                 string.Empty));
         
         private readonly NetworkStream stream;
-        private readonly PipeReader pipeReader;
+        private readonly LengthPrefixPipeReader pipeReader;
         private readonly PipeWriter pipeWriter;
 
         private int nextRequestId = 0;
@@ -46,7 +45,10 @@ namespace CosmosBenchmark
         private static readonly Lazy<ConcurrentPrng> rng =
             new Lazy<ConcurrentPrng>(LazyThreadSafetyMode.ExecutionAndPublication);
 
-        private CosmosDuplexPipe(NetworkStream ns, PipeReader reader, PipeWriter writer)
+        private CosmosDuplexPipe(
+            NetworkStream ns,
+            LengthPrefixPipeReader reader, 
+            PipeWriter writer)
         {
             this.stream = ns;
 
@@ -54,9 +56,9 @@ namespace CosmosBenchmark
             this.pipeWriter = writer;
         }
 
-        public PipeReader Input => this.pipeReader;
+        public LengthPrefixPipeReader Reader => this.pipeReader;
 
-        public PipeWriter Output => this.pipeWriter;
+        public PipeWriter Writer => this.pipeWriter;
 
         public void Dispose()
         {
@@ -86,36 +88,30 @@ namespace CosmosBenchmark
         {
             FlushResult flushResult = await this.SendReadRequestAsync(replicaPath, databaseName, contaienrName, itemName, partitionKey);
 
-            (int length, ReadResult readResult) = await ReadLengthPrefixedMessageFullToConsume(this.pipeReader);
+            (UInt32 messageLength, byte[] messageBytes) = await this.Reader.MoveNextAsync(isLengthCountedIn: true);
 
             // TODO: Incoming context validation 
             // sizeof(UInt32) -> Length-prefix
             // sizeof(UInt32) -> Status code
             // 16 <- Activity id (hard coded)
-            int connectionContextOffet = sizeof(UInt32) + sizeof(UInt32) + BytesSerializer.GetSizeOfGuid();
-            uint statusCode = MemoryMarshal.Read<uint>(readResult.Buffer.FirstSpan.Slice(sizeof(UInt32)));
-            if (statusCode > 399)
+            UInt32 connectionContextOffet = (UInt32)(sizeof(UInt32) + sizeof(UInt32) + BytesSerializer.GetSizeOfGuid());
+            UInt32 statusCode = BitConverter.ToUInt32(messageBytes, sizeof(UInt32));
+            if (statusCode > 399 && statusCode != 404)
             {
                 throw new Exception($"Non success status code: {statusCode}");
             }
 
-            byte[] deserializePayload = readResult.Buffer.Slice(connectionContextOffet, length - connectionContextOffet).ToArray();
             RntbdConstants.Response response = new();
-            Deserialize(deserializePayload, response);
-
-            // ACK: Consumed (Broken abstraction :-( )
-            this.pipeReader.AdvanceTo(readResult.Buffer.GetPosition(length), readResult.Buffer.End);
+            Deserialize(messageBytes, connectionContextOffet, messageLength - connectionContextOffet, response);
 
             if (response.payloadPresent.isPresent && response.payloadPresent.value.valueByte != 0x00)
             {
                 // Payload is present 
-                (length, readResult) = await ReadLengthPrefixedMessageFullToConsume(this.pipeReader);
-
-                // TODO: Response buffer 
-
-                // ACK: Consumed (Broken abstraction :-( )
-                this.pipeReader.AdvanceTo(readResult.Buffer.GetPosition(length), readResult.Buffer.End);
+                (messageLength, byte[] payloadBytes) = await this.Reader.MoveNextAsync(isLengthCountedIn: false);
+                ArrayPool<byte>.Shared.Return(payloadBytes);
             }
+
+            ArrayPool<byte>.Shared.Return(messageBytes);
         }
 
         public ValueTask<FlushResult> SendReadRequestAsync(
@@ -240,72 +236,41 @@ namespace CosmosBenchmark
             var pipeWriter = PipeWriter.Create(sslStream, new StreamPipeWriterOptions(leaveOpen: true));
             var pipeReader = PipeReader.Create(sslStream, new StreamPipeReaderOptions(leaveOpen: true));
 
-            CosmosDuplexPipe duplexPipe = new CosmosDuplexPipe(ns, pipeReader, pipeWriter);
-            await CosmosDuplexPipe.NegotiateRntbdContext(duplexPipe);
+            CosmosDuplexPipe duplexPipe = new CosmosDuplexPipe(
+                    ns, 
+                    new LengthPrefixPipeReader(pipeReader), 
+                    pipeWriter);
 
+            await CosmosDuplexPipe.NegotiateRntbdContext(duplexPipe);
             return duplexPipe;
         }
 
         private static void Deserialize<T>(
             byte[] deserializePayload,
+            UInt32 startPosition,
+            UInt32 length,
             RntbdTokenStream<T> responseType) where T : Enum
         {
-            BytesDeserializer bytesDeserializer = new BytesDeserializer(deserializePayload, deserializePayload.Length);
+            BytesDeserializer bytesDeserializer = new BytesDeserializer(deserializePayload, (int)startPosition, (int)length);
             responseType.ParseFrom(ref bytesDeserializer);
         }
-
-        // TODO: Multi part length prefixed payload (ex: incoming payload like create etc...)
-        // Caller needs to advance the reader for length
-        //  TODO: Add message handler model to abstract out the consumption aspect's
-        private static async ValueTask<(int, ReadResult)> ReadLengthPrefixedMessageFullToConsume(PipeReader pipeReader)
-        {
-            int length = -1;
-
-            ReadResult readResult = await pipeReader.ReadAtLeastAsync(4);
-            var buffer = readResult.Buffer;
-            if (!readResult.IsCompleted)
-            {
-                Debug.Assert(buffer.FirstSpan.Length >= 4);
-
-                length = (int)BitConverter.ToUInt32(readResult.Buffer.FirstSpan.Slice(0, sizeof(UInt32)));
-
-                if (buffer.Length < length) // Read at-least length (included length 4-bytes as well)
-                {
-                    pipeReader.AdvanceTo(buffer.Start, readResult.Buffer.End); // Not yet consumed
-                    readResult = await pipeReader.ReadAtLeastAsync(length);
-                }
-
-                Debug.Assert(readResult.Buffer.Length >= length);
-            }
-
-            if (length == -1 || readResult.Buffer.Length < length)
-            {
-                // TODO: clean-up (for POC its fine)
-                throw new Exception($"{nameof(ReadLengthPrefixedMessageFullToConsume)} failed length: {length}, readResult.Buffer.Length: {readResult.Buffer.Length}");
-            }
-
-            return (length, readResult);
-        }
-
 
         private static async Task NegotiateRntbdContext(CosmosDuplexPipe duplexPipe)
         {
             await duplexPipe.SendRntbdContext();
 
-            (int length, ReadResult readResult) = await ReadLengthPrefixedMessageFullToConsume(duplexPipe.Input);
+            (UInt32 length, byte[] messageBytes) = await duplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true);
 
             // TODO: Incoming context validation 
             // sizeof(UInt32) -> Length-prefix
             // sizeof(UInt32) -> Status code
             // 16 <- Activity id (hard coded)
-            int connectionContextOffet = sizeof(UInt32) + sizeof(UInt32) + BytesSerializer.GetSizeOfGuid();
+            UInt32 connectionContextOffet = (UInt32)(sizeof(UInt32) + sizeof(UInt32) + BytesSerializer.GetSizeOfGuid());
 
-            byte[] deserializePayload = readResult.Buffer.Slice(connectionContextOffet, length - connectionContextOffet).ToArray();
             ConnectionContextResponse response = new ConnectionContextResponse();
-            Deserialize(deserializePayload, response);
+            Deserialize(messageBytes, connectionContextOffet, length - connectionContextOffet, response);
 
-            // ACK: Consumed (Broken abstraction :-( )
-            duplexPipe.Input.AdvanceTo(readResult.Buffer.GetPosition(length), readResult.Buffer.End);
+            ArrayPool<byte>.Shared.Return(messageBytes);
         }
 
         private ValueTask<FlushResult> SendRntbdContext(

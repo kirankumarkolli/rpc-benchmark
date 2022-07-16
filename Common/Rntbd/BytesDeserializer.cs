@@ -11,6 +11,13 @@ namespace Microsoft.Azure.Cosmos.Rntbd
     {
         private readonly ReadOnlyMemory<byte> metadata;
 
+        public BytesDeserializer(byte[] metadata, int startPoistion, int length) : this()
+        {
+            this.metadata = new Memory<byte>(metadata, 0, metadata.Length);
+            this.Position = startPoistion;
+            this.Length = startPoistion + length; // TODO: Length and index combination used weirdly (ideal to clean-up with Span)
+        }
+
         public BytesDeserializer(byte[] metadata, int length) : this()
         {
             this.metadata = new Memory<byte>(metadata, 0, length);
