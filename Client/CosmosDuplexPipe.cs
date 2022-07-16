@@ -29,6 +29,11 @@ namespace CosmosBenchmark
 
     internal class CosmosDuplexPipe : IDuplexPipe, IDisposable
     {
+        private static readonly string AuthorizationFormatPrefixUrlEncoded = HttpUtility.UrlEncode(string.Format(CultureInfo.InvariantCulture, Constants.Properties.AuthorizationFormat,
+                Constants.Properties.MasterToken,
+                Constants.Properties.TokenVersion,
+                string.Empty));
+        
         private readonly NetworkStream stream;
         private readonly PipeReader pipeReader;
         private readonly PipeWriter pipeWriter;
@@ -131,6 +136,18 @@ namespace CosmosBenchmark
             rntbdRequest.partitionKey.value.valueBytes = BytesSerializer.GetBytesForString(partitionKey, rntbdRequest);
             rntbdRequest.partitionKey.isPresent = true;
 
+            //rntbdRequest.resourceId.value.valueBytes = ResourceId.Parse("Qpd0AJ7VlTw=").Value;
+            //rntbdRequest.resourceId.isPresent = true;
+
+            //rntbdRequest.collectionRid.value.valueBytes = BytesSerializer.GetBytesForString("Qpd0AJ7VlTw=", rntbdRequest);
+            //rntbdRequest.collectionRid.isPresent = true;
+
+            //rntbdRequest.clientRetryAttemptCount.value.valueULong = 0;
+            //rntbdRequest.clientRetryAttemptCount.isPresent = true;
+
+            //rntbdRequest.remainingTimeInMsOnClientRequest.value.valueULong = 30000;
+            //rntbdRequest.remainingTimeInMsOnClientRequest.isPresent = true;
+
             rntbdRequest.replicaPath.value.valueBytes = BytesSerializer.GetBytesForString(replicaPath, rntbdRequest);
             rntbdRequest.replicaPath.isPresent = true;
 
@@ -147,11 +164,17 @@ namespace CosmosBenchmark
             rntbdRequest.date.value.valueBytes = BytesSerializer.GetBytesForString(dateHeaderValue, rntbdRequest);
             rntbdRequest.date.isPresent = true;
 
-            string authorization = AuthorizationHelper.GenerateKeyAuthorizationCore("GET", dateHeaderValue, "docs", resourceId, authKeyHashFunction);
+            string authorizationToken = AuthorizationHelper.GenerateKeyAuthorizationCore(
+                                                    verb: "GET", 
+                                                    resourceId: resourceId,
+                                                    resourceType: "docs",
+                                                    date: dateHeaderValue,
+                                                    computeHash: authKeyHashFunction);
+            string authorization = CosmosDuplexPipe.AuthorizationFormatPrefixUrlEncoded + HttpUtility.UrlEncode(authorizationToken);
             rntbdRequest.authorizationToken.value.valueBytes = BytesSerializer.GetBytesForString(authorization, rntbdRequest);
             rntbdRequest.authorizationToken.isPresent = true;
 
-            rntbdRequest.transportRequestID.value.valueBytes = BytesSerializer.GetBytesForString(requestId.ToString(CultureInfo.InvariantCulture), rntbdRequest);
+            rntbdRequest.transportRequestID.value.valueULong = requestId;
             rntbdRequest.transportRequestID.isPresent = true;
 
             rntbdRequest.payloadPresent.value.valueByte = 0x00;
