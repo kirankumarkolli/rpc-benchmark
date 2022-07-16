@@ -17,9 +17,9 @@
     <Compile Include="..\..\Common\Rntbd\*.cs">
       <Link>Rntbd\%(RecursiveDir)%(FileName)%(Extension)</Link>
     </Compile>
-    <None Include="..\..\Common\*.cs">
+    <Compile Include="..\..\Common\*.cs">
       <Link>Common\%(RecursiveDir)%(FileName)%(Extension)</Link>
-    </None>
+    </Compile>
   </ItemGroup>
   
   <ItemGroup>

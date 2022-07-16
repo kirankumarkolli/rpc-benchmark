@@ -22,9 +22,10 @@ namespace CosmosBenchmark
     using System.Threading.Tasks;
     using static Microsoft.Azure.Documents.RntbdConstants;
     using System.Buffers;
-    using Microsoft.Azure.Documents.Rntbd;
     using System.Globalization;
-    using Microsoft.Azure.Cosmos;
+using Microsoft.Azure.Cosmos;
+    using System.Collections.Concurrent;
+using Microsoft.Azure.Cosmos.Core.Trace;
 
     internal class CosmosDuplexPipe : IDisposable
     {
@@ -126,89 +127,91 @@ namespace CosmosBenchmark
 
             string resourceId = $"dbs/{databaseName}/colls/{contaienrName}/docs/{itemName}";
 
-            using TransportSerialization.RntbdRequestPool.RequestOwner owner = TransportSerialization.RntbdRequestPool.Instance.Get();
-            RntbdConstants.Request rntbdRequest = owner.Request;
-
-            rntbdRequest.partitionKey.value.valueBytes = BytesSerializer.GetBytesForString(partitionKey, rntbdRequest);
-            rntbdRequest.partitionKey.isPresent = true;
-
-            //rntbdRequest.resourceId.value.valueBytes = ResourceId.Parse("Qpd0AJ7VlTw=").Value;
-            //rntbdRequest.resourceId.isPresent = true;
-
-            //rntbdRequest.collectionRid.value.valueBytes = BytesSerializer.GetBytesForString("Qpd0AJ7VlTw=", rntbdRequest);
-            //rntbdRequest.collectionRid.isPresent = true;
-
-            //rntbdRequest.clientRetryAttemptCount.value.valueULong = 0;
-            //rntbdRequest.clientRetryAttemptCount.isPresent = true;
-
-            //rntbdRequest.remainingTimeInMsOnClientRequest.value.valueULong = 30000;
-            //rntbdRequest.remainingTimeInMsOnClientRequest.isPresent = true;
-
-            rntbdRequest.replicaPath.value.valueBytes = BytesSerializer.GetBytesForString(replicaPath, rntbdRequest);
-            rntbdRequest.replicaPath.isPresent = true;
-
-            rntbdRequest.databaseName.value.valueBytes = BytesSerializer.GetBytesForString(databaseName, rntbdRequest);
-            rntbdRequest.databaseName.isPresent = true;
-
-            rntbdRequest.collectionName.value.valueBytes = BytesSerializer.GetBytesForString(contaienrName, rntbdRequest);
-            rntbdRequest.collectionName.isPresent = true;
-
-            rntbdRequest.documentName.value.valueBytes = BytesSerializer.GetBytesForString(itemName, rntbdRequest);
-            rntbdRequest.documentName.isPresent = true;
-
-            string dateHeaderValue = DateTime.UtcNow.ToString("r", CultureInfo.InvariantCulture);
-            rntbdRequest.date.value.valueBytes = BytesSerializer.GetBytesForString(dateHeaderValue, rntbdRequest);
-            rntbdRequest.date.isPresent = true;
-
-            string authorizationToken = AuthorizationHelper.GenerateKeyAuthorizationCore(
-                                                    verb: "GET", 
-                                                    resourceId: resourceId,
-                                                    resourceType: "docs",
-                                                    date: dateHeaderValue,
-                                                    computeHash: authKeyHashFunction);
-            string authorization = CosmosDuplexPipe.AuthorizationFormatPrefixUrlEncoded + HttpUtility.UrlEncode(authorizationToken);
-            rntbdRequest.authorizationToken.value.valueBytes = BytesSerializer.GetBytesForString(authorization, rntbdRequest);
-            rntbdRequest.authorizationToken.isPresent = true;
-
-            rntbdRequest.transportRequestID.value.valueULong = requestId;
-            rntbdRequest.transportRequestID.isPresent = true;
-
-            rntbdRequest.payloadPresent.value.valueByte = 0x00;
-            rntbdRequest.payloadPresent.isPresent = true;
-
-            // Once all metadata tokens are set, we can calculate the length.
-            int metadataLength = (sizeof(uint) + sizeof(ushort) + sizeof(ushort) + BytesSerializer.GetSizeOfGuid());
-            int headerAndMetadataLength = metadataLength + rntbdRequest.CalculateLength(); // metadata tokens
-            int allocationLength = headerAndMetadataLength;
-
-            Memory<byte> bytes = this.pipeWriter.GetMemory(allocationLength);
-            BytesSerializer writer = new BytesSerializer(bytes.Span);
-
-            // header
-            writer.Write((uint)headerAndMetadataLength);
-            writer.Write((ushort)RntbdConstants.RntbdResourceType.Document);
-            writer.Write((ushort)RntbdConstants.RntbdOperationType.Read);
-            writer.Write(activityId);
-            int actualWritten = metadataLength;
-
-            // metadata
-            rntbdRequest.SerializeToBinaryWriter(ref writer, out int tokensLength);
-            actualWritten += tokensLength;
-
-            if (actualWritten != allocationLength)
+            using (RntbdRequestPool.RequestOwner owner = RntbdRequestPool.Instance.Get())
             {
-                throw new Exception($"Unexpected length mis-match actualWritten:{actualWritten} allocationLength:{allocationLength}");
-            }
+                RntbdConstants.Request rntbdRequest = owner.Request;
 
-            this.pipeWriter.Advance(allocationLength);
-            return this.pipeWriter.FlushAsync();
+                rntbdRequest.partitionKey.value.valueBytes = BytesSerializer.GetBytesForString(partitionKey, rntbdRequest);
+                rntbdRequest.partitionKey.isPresent = true;
+
+                //rntbdRequest.resourceId.value.valueBytes = ResourceId.Parse("Qpd0AJ7VlTw=").Value;
+                //rntbdRequest.resourceId.isPresent = true;
+
+                //rntbdRequest.collectionRid.value.valueBytes = BytesSerializer.GetBytesForString("Qpd0AJ7VlTw=", rntbdRequest);
+                //rntbdRequest.collectionRid.isPresent = true;
+
+                //rntbdRequest.clientRetryAttemptCount.value.valueULong = 0;
+                //rntbdRequest.clientRetryAttemptCount.isPresent = true;
+
+                //rntbdRequest.remainingTimeInMsOnClientRequest.value.valueULong = 30000;
+                //rntbdRequest.remainingTimeInMsOnClientRequest.isPresent = true;
+
+                rntbdRequest.replicaPath.value.valueBytes = BytesSerializer.GetBytesForString(replicaPath, rntbdRequest);
+                rntbdRequest.replicaPath.isPresent = true;
+
+                rntbdRequest.databaseName.value.valueBytes = BytesSerializer.GetBytesForString(databaseName, rntbdRequest);
+                rntbdRequest.databaseName.isPresent = true;
+
+                rntbdRequest.collectionName.value.valueBytes = BytesSerializer.GetBytesForString(contaienrName, rntbdRequest);
+                rntbdRequest.collectionName.isPresent = true;
+
+                rntbdRequest.documentName.value.valueBytes = BytesSerializer.GetBytesForString(itemName, rntbdRequest);
+                rntbdRequest.documentName.isPresent = true;
+
+                string dateHeaderValue = DateTime.UtcNow.ToString("r", CultureInfo.InvariantCulture);
+                rntbdRequest.date.value.valueBytes = BytesSerializer.GetBytesForString(dateHeaderValue, rntbdRequest);
+                rntbdRequest.date.isPresent = true;
+
+                string authorizationToken = AuthorizationHelper.GenerateKeyAuthorizationCore(
+                                                        verb: "GET",
+                                                        resourceId: resourceId,
+                                                        resourceType: "docs",
+                                                        date: dateHeaderValue,
+                                                        computeHash: authKeyHashFunction);
+                string authorization = CosmosDuplexPipe.AuthorizationFormatPrefixUrlEncoded + HttpUtility.UrlEncode(authorizationToken);
+                rntbdRequest.authorizationToken.value.valueBytes = BytesSerializer.GetBytesForString(authorization, rntbdRequest);
+                rntbdRequest.authorizationToken.isPresent = true;
+
+                rntbdRequest.transportRequestID.value.valueULong = requestId;
+                rntbdRequest.transportRequestID.isPresent = true;
+
+                rntbdRequest.payloadPresent.value.valueByte = 0x00;
+                rntbdRequest.payloadPresent.isPresent = true;
+
+                // Once all metadata tokens are set, we can calculate the length.
+                int metadataLength = (sizeof(uint) + sizeof(ushort) + sizeof(ushort) + BytesSerializer.GetSizeOfGuid());
+                int headerAndMetadataLength = metadataLength + rntbdRequest.CalculateLength(); // metadata tokens
+                int allocationLength = headerAndMetadataLength;
+
+                Memory<byte> bytes = this.pipeWriter.GetMemory(allocationLength);
+                BytesSerializer writer = new BytesSerializer(bytes.Span);
+
+                // header
+                writer.Write((uint)headerAndMetadataLength);
+                writer.Write((ushort)RntbdConstants.RntbdResourceType.Document);
+                writer.Write((ushort)RntbdConstants.RntbdOperationType.Read);
+                writer.Write(activityId);
+                int actualWritten = metadataLength;
+
+                // metadata
+                rntbdRequest.SerializeToBinaryWriter(ref writer, out int tokensLength);
+                actualWritten += tokensLength;
+
+                if (actualWritten != allocationLength)
+                {
+                    throw new Exception($"Unexpected length mis-match actualWritten:{actualWritten} allocationLength:{allocationLength}");
+                }
+
+                this.pipeWriter.Advance(allocationLength);
+                return this.pipeWriter.FlushAsync();
+            }
         }
 
         public static async Task<CosmosDuplexPipe> Connect(Uri endpoint)
         {
             IPAddress resolvedAddress = await ResolveHostAsync(endpoint.DnsSafeHost);
             TcpClient tcpClient = new TcpClient(resolvedAddress.AddressFamily);
-            Connection.SetCommonSocketOptions(tcpClient.Client);
+            SetCommonSocketOptions(tcpClient.Client);
 
             await tcpClient.ConnectAsync(resolvedAddress, endpoint.Port);
 
@@ -311,6 +314,126 @@ namespace CosmosBenchmark
             this.pipeWriter.Advance(length);
 
             return this.pipeWriter.FlushAsync();
+        }
+
+
+        internal class RntbdRequestPool
+        {
+            public static readonly RntbdRequestPool Instance = new RntbdRequestPool();
+
+            private readonly ConcurrentQueue<RntbdConstants.Request> requests = new ConcurrentQueue<RntbdConstants.Request>();
+
+            private RntbdRequestPool()
+            {
+            }
+
+            public RequestOwner Get()
+            {
+                if (this.requests.TryDequeue(out RntbdConstants.Request request))
+                {
+                    return new RequestOwner(request);
+                }
+
+                return new RequestOwner(new RntbdConstants.Request());
+            }
+
+            private void Return(RntbdConstants.Request request)
+            {
+                request.Reset();
+                this.requests.Enqueue(request);
+            }
+
+            public readonly struct RequestOwner : IDisposable
+            {
+                public RequestOwner(RntbdConstants.Request request)
+                {
+                    this.Request = request;
+                }
+
+                public RntbdConstants.Request Request { get; }
+
+                public void Dispose()
+                {
+                    RntbdRequestPool.Instance.Return(this.Request);
+                }
+            }
+        }
+        internal static void SetCommonSocketOptions(Socket clientSocket)
+        {
+            clientSocket.SetSocketOption(SocketOptionLevel.Tcp, SocketOptionName.NoDelay, true);
+            EnableTcpKeepAlive(clientSocket);
+        }
+
+        private static void EnableTcpKeepAlive(Socket clientSocket)
+        {
+            clientSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.KeepAlive, true);
+
+#if !NETSTANDARD15 && !NETSTANDARD16
+            // This code should use RuntimeInformation.IsOSPlatform(OSPlatform.Windows),
+            // but the feature is unavailable on .NET Framework 4.5.1.
+            if (Environment.OSVersion.Platform == PlatformID.Win32NT)
+            {
+                try
+                {
+                    clientSocket.IOControl(
+                        IOControlCode.KeepAliveValues,
+                        keepAliveConfiguration.Value,
+                        null);
+                }
+                catch (Exception e)
+                {
+                    DefaultTrace.TraceWarning("IOControl(KeepAliveValues) failed: {0}", e);
+                    // Ignore the exception.
+                }
+            }
+#endif  // !NETSTANDARD15 && !NETSTANDARD16
+        }
+
+        private static readonly Lazy<byte[]> keepAliveConfiguration =
+            new Lazy<byte[]>(GetWindowsKeepAliveConfiguration,
+                LazyThreadSafetyMode.ExecutionAndPublication);
+
+        private static byte[] GetWindowsKeepAliveConfiguration()
+        {
+            const uint EnableKeepAlive = 1;
+            const uint KeepAliveIntervalMs = 30 * 1000;
+            const uint KeepAliveRetryIntervalMs = 1 * 1000;
+
+            //  struct tcp_keepalive
+            //  {
+            //      u_long  onoff;
+            //      u_long  keepalivetime;
+            //      u_long  keepaliveinterval;
+            //  };
+            byte[] keepAliveConfig = new byte[3 * sizeof(uint)];
+            BitConverter.GetBytes(EnableKeepAlive).CopyTo(keepAliveConfig, 0);
+            BitConverter.GetBytes(KeepAliveIntervalMs).CopyTo(keepAliveConfig, sizeof(uint));
+            BitConverter.GetBytes(KeepAliveRetryIntervalMs).CopyTo(keepAliveConfig, 2 * sizeof(uint));
+            return keepAliveConfig;
+        }
+
+        private static void SetReuseUnicastPort(Socket clientSocket)
+        {
+#if !NETSTANDARD15 && !NETSTANDARD16
+            // This code should use RuntimeInformation.IsOSPlatform(OSPlatform.Windows),
+            // but the feature is unavailable on .NET Framework 4.5.1.
+            if (Environment.OSVersion.Platform == PlatformID.Win32NT)
+            {
+                try
+                {
+                    Debug.Assert(!clientSocket.IsBound);
+                    // SocketOptionName.ReuseUnicastPort is only present in .NET Framework 4.6.1 and newer.
+                    // Use the numeric value for as long as this code needs to target earlier versions.
+                    const int SO_REUSE_UNICASTPORT = 0x3007;
+                    clientSocket.SetSocketOption(SocketOptionLevel.Socket, (SocketOptionName)SO_REUSE_UNICASTPORT, true);
+                }
+                catch (Exception e)
+                {
+                    DefaultTrace.TraceWarning("SetSocketOption(Socket, ReuseUnicastPort) failed: {0}", e);
+                    // Ignore the exception.
+                }
+            }
+#endif  // !NETSTANDARD15 && !NETSTANDARD16
         }
     }
 }
