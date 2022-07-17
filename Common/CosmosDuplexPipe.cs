@@ -93,7 +93,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
             // 16 <- Activity id (hard coded)
             UInt32 connectionContextOffet = (UInt32)(sizeof(UInt32) + sizeof(UInt32) + BytesSerializer.GetSizeOfGuid());
             UInt32 statusCode = BitConverter.ToUInt32(messageBytes, sizeof(UInt32));
-            if (statusCode > 399 && statusCode != 404)
+            if (statusCode > 399 && statusCode != 404 && statusCode != 429)
             {
                 throw new Exception($"Non success status code: {statusCode}");
             }
