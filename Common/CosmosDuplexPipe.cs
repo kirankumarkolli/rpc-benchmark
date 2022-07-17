@@ -203,7 +203,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
             }
         }
 
-        public static async Task<CosmosDuplexPipe> ConnectAsClient(Uri endpoint)
+        public static async Task<CosmosDuplexPipe> ConnectAsClientAsync(Uri endpoint)
         {
             IPAddress resolvedAddress = await ResolveHostAsync(endpoint.DnsSafeHost);
             TcpClient tcpClient = new TcpClient(resolvedAddress.AddressFamily);

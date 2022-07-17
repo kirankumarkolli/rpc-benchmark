@@ -49,7 +49,7 @@ namespace KestrelTcpDemo
             options.ListenAnyIP(_options.EndPoint.Port, listenOptions =>
             {
                 listenOptions.Protocols = HttpProtocols.None;
-                listenOptions.UseConnectionHandler<InMemoryRntbd2ConnectionHandler>();
+                listenOptions.UseConnectionHandler<ReverseProxyRntbd2ConnectionHandler>();
                 if (!String.IsNullOrWhiteSpace(_options.SslCertSubject))
                 {
                     listenOptions.UseHttps(
