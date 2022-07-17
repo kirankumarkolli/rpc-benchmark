@@ -5,7 +5,6 @@ using System.IO;
 using System.IO.Pipelines;
 using System.Net;
 using System.Net.Security;
-using System.Runtime.CompilerServices;
 using System.Security.Authentication;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -13,16 +12,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Connections.Features;
-using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Cosmos.Rntbd;
 using Microsoft.Azure.Documents;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Options;
 using static Microsoft.Azure.Documents.RntbdConstants;
 using Kestrel.Clone;
 using System.Collections.Concurrent;
+using CosmosBenchmark;
 
 namespace KestrelTcpDemo
 {
@@ -123,30 +119,25 @@ namespace KestrelTcpDemo
 
                 // Server SSL auth
                 await DoOptionsBasedHandshakeAsync(context, sslStream, CancellationToken.None);
-
-                // Process RntbdMessages
-                await OnRntbdConnectionAsync(context.ConnectionId, sslDuplexPipe);
+                using (CosmosDuplexPipe cosmosDuplexPipe = new CosmosDuplexPipe(sslStream))
+                {
+                    // Process RntbdMessages
+                    await OnRntbdConnectionAsync(context.ConnectionId, cosmosDuplexPipe);
+                }
             }
         }
 
-        public async Task OnRntbdConnectionAsync(string connectionId, IDuplexPipe sslDuplexPipe)
+        public async Task OnRntbdConnectionAsync(string connectionId, CosmosDuplexPipe cosmosDuplexPipe)
         {
             try
-            { 
-                await NegotiateRntbdContext(sslDuplexPipe);
+            {
+                await cosmosDuplexPipe.NegotiateRntbdContextAsServer();
 
                 // Code to parse length prefixed encoding
                 while (true)
                 {
-                    (int length, ReadResult readResult) = await ReadLengthPrefixedMessageFull(sslDuplexPipe);
-                    var buffer = readResult.Buffer;
-
-                    if (length != -1) // request already completed
-                    {
-                        int responseLength = await ProcessMessageAsync(connectionId, sslDuplexPipe, buffer.Slice(0, length));
-
-                        sslDuplexPipe.Input.AdvanceTo(readResult.Buffer.GetPosition(length), readResult.Buffer.End);
-                    }
+                    (UInt32 messageLength, byte[] messagebytes) = await cosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true);
+                    int responseLength = await ProcessMessageAsync(connectionId, cosmosDuplexPipe, messageLength, messagebytes);
                 }
             }
             catch (ConnectionResetException ex)
@@ -167,68 +158,16 @@ namespace KestrelTcpDemo
             }
         }
 
-        // TODO: Multi part length prefixed payload (ex: incoming payload like create etc...)
-        private static async ValueTask<(int, ReadResult)> ReadLengthPrefixedMessageFull(IDuplexPipe duplexPipe)
-        {
-            var input = duplexPipe.Input;
-            int length = -1;
-
-            ReadResult readResult = await input.ReadAtLeastAsync(4);
-            var buffer = readResult.Buffer;
-            if (!readResult.IsCompleted)
-            {
-                Debug.Assert(buffer.FirstSpan.Length >= 4);
-
-                length = (int)BitConverter.ToUInt32(readResult.Buffer.FirstSpan.Slice(0, sizeof(UInt32)));
-
-                if (buffer.Length < length) // Read at-least length
-                {
-                    input.AdvanceTo(buffer.Start, readResult.Buffer.End);
-                    readResult = await input.ReadAtLeastAsync(length);
-                }
-            }
-
-            return (length, readResult);
-        }
-
-        private static async Task NegotiateRntbdContext(IDuplexPipe duplexPipe)
-        {
-            // RntbdContext negotiation
-            (int length, ReadResult readResult) = await ReadLengthPrefixedMessageFull(duplexPipe);
-            var buffer = readResult.Buffer;
-
-            // TODO: Incoming context validation 
-            // 16 <- Activity id (hard coded)
-            int connectionContextOffet = sizeof(UInt32) + sizeof(UInt16) + sizeof(UInt16) + 16;
-
-            byte[] deserializePayload = buffer.Slice(connectionContextOffet, length - connectionContextOffet).ToArray();
-            RntbdConstants.ConnectionContextRequest request = new RntbdConstants.ConnectionContextRequest();
-            Deserialize(deserializePayload, request);
-
-            // Mark the incoming message as consumed
-            // TODO: Test exception scenarios (i.e. if processing alter fails its impact)
-            duplexPipe.Input.AdvanceTo(buffer.GetPosition(length), readResult.Buffer.End);
-
-            // Send response 
-            await RntbdConstants.ConnectionContextResponse.Serialize(200, Guid.NewGuid(), duplexPipe.Output);
-        }
-
-        private static void Deserialize<T>(
-            byte[] deserializePayload,
-            RntbdTokenStream<T> request) where T : Enum
-        {
-            BytesDeserializer reader = new BytesDeserializer(deserializePayload, deserializePayload.Length);
-            request.ParseFrom(ref reader);
-        }
-
         private static void DeserializeReqeust<T>(
             byte[] deserializePayload,
+            int startPoistion, 
+            int length,
             out RntbdConstants.RntbdResourceType resourceType,
             out RntbdConstants.RntbdOperationType operationType,
             out Guid operationId,
             RntbdTokenStream<T> request) where T : Enum
         {
-            BytesDeserializer reader = new BytesDeserializer(deserializePayload, deserializePayload.Length);
+            BytesDeserializer reader = new BytesDeserializer(deserializePayload, startPoistion, length);
 
             // Format: {ResourceType: 2}, {OperationType: 2}, {Guid: 16)
             resourceType = (RntbdConstants.RntbdResourceType)reader.ReadUInt16();
@@ -240,63 +179,77 @@ namespace KestrelTcpDemo
 
         private async Task<int> ProcessMessageAsync(
             string connectionId,
-            IDuplexPipe sslDuplexPipe,
-            ReadOnlySequence<byte> buffer)
+            CosmosDuplexPipe cosmosDuplexPipe,
+            UInt32 messageLength,
+            byte[] messageBytes)
         {
-            // TODO: Avoid array materialization
-            byte[] deserializePayload = buffer.Slice(4, buffer.Length - 4).ToArray();
-
-            Request request = new Request();
-            DeserializeReqeust(deserializePayload,
-                out RntbdConstants.RntbdResourceType resourceType,
-                out RntbdConstants.RntbdOperationType operationType,
-                out Guid operationId,
-                request);
-
-            //if (request)
-            string dbName = BytesSerializer.GetStringFromBytes(request.databaseName.value.valueBytes);
-            string collectionName = BytesSerializer.GetStringFromBytes(request.collectionName.value.valueBytes);
-            string itemName = BytesSerializer.GetStringFromBytes(request.documentName.value.valueBytes);
-
-            string dateHeader = BytesSerializer.GetStringFromBytes(request.date.value.valueBytes);
-            string authHeaderValue = BytesSerializer.GetStringFromBytes(request.authorizationToken.value.valueBytes);
-
-            if (resourceType == RntbdResourceType.Document && operationType == RntbdOperationType.Read)
+            try
             {
-                string authorization = AuthorizationHelper.GenerateKeyAuthorizationCore("GET",
-                    dateHeader,
-                    "docs",
-                    String.Format($"dbs/{dbName}/colls/{collectionName}/docs/{itemName}"),
-                    this.computeHash);
-                if (authorization != authHeaderValue)
+                Request request = new Request();
+                DeserializeReqeust(
+                        messageBytes,
+                        sizeof(UInt32),
+                        (int)messageLength - sizeof(UInt32),
+                        out RntbdConstants.RntbdResourceType resourceType,
+                        out RntbdConstants.RntbdOperationType operationType,
+                        out Guid operationId,
+                        request);
+
+                if (request.payloadPresent.isPresent
+                    && request.payloadPresent.value.valueByte != 0x00)
                 {
-                    // TODO: Rntbd handling 
-                    throw new Exception("Unauthorized");
+                    (UInt32 payloadLength, byte[] payloadBytes) = await cosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: false);
+                    ArrayPool<byte>.Shared.Return(payloadBytes);
                 }
+
+                //if (request)
+                string dbName = BytesSerializer.GetStringFromBytes(request.databaseName.value.valueBytes);
+                string collectionName = BytesSerializer.GetStringFromBytes(request.collectionName.value.valueBytes);
+                string itemName = BytesSerializer.GetStringFromBytes(request.documentName.value.valueBytes);
+
+                string dateHeader = BytesSerializer.GetStringFromBytes(request.date.value.valueBytes);
+                string authHeaderValue = BytesSerializer.GetStringFromBytes(request.authorizationToken.value.valueBytes);
+
+                if (resourceType == RntbdResourceType.Document && operationType == RntbdOperationType.Read)
+                {
+                    string authorization = AuthorizationHelper.GenerateKeyAuthorizationCore("GET",
+                        dateHeader,
+                        "docs",
+                        String.Format($"dbs/{dbName}/colls/{collectionName}/docs/{itemName}"),
+                        this.computeHash);
+                    // TODO: Auth format parsing 
+                    //if (authorization != authHeaderValue)
+                    //{
+                    //    // TODO: Rntbd handling 
+                    //    throw new Exception("Unauthorized");
+                    //}
+                }
+
+                Response response = new Response();
+                response.payloadPresent.value.valueByte = (byte)1;
+                response.payloadPresent.isPresent = true;
+
+                response.transportRequestID.value.valueULong = request.transportRequestID.value.valueULong;
+                response.transportRequestID.isPresent = true;
+
+                response.requestCharge.value.valueDouble = 1.0;
+                response.requestCharge.isPresent = true;
+
+                int totalResponselength = sizeof(UInt32) + sizeof(UInt32) + 16;
+                totalResponselength += response.CalculateLength();
+
+                Memory<byte> bytes = cosmosDuplexPipe.Writer.GetMemory(totalResponselength);
+                int serializedLength = Rntbd2ConnectionHandler.Serialize(totalResponselength, 200, operationId, response, testPayload, bytes);
+
+                cosmosDuplexPipe.Writer.Advance(serializedLength);
+                await cosmosDuplexPipe.Writer.FlushAsync();
+
+                return serializedLength;
             }
-
-            Response response = new Response();
-            response.payloadPresent.value.valueByte = (byte)1;
-            response.payloadPresent.isPresent = true;
-
-            response.transportRequestID.value.valueULong = request.transportRequestID.value.valueULong;
-            response.transportRequestID.isPresent = true;
-
-            response.requestCharge.value.valueDouble = 1.0;
-            response.requestCharge.isPresent = true;
-
-            Trace.TraceError($"Processing {connectionId} -> {request.transportRequestID.value.valueULong}");
-
-            int totalResponselength = sizeof(UInt32) + sizeof(UInt32) + 16;
-            totalResponselength += response.CalculateLength();
-
-            Memory<byte> bytes = sslDuplexPipe.Output.GetMemory(totalResponselength);
-            int serializedLength = Rntbd2ConnectionHandler.Serialize(totalResponselength, 200, operationId, response, testPayload, bytes);
-
-            sslDuplexPipe.Output.Advance(serializedLength);
-            await sslDuplexPipe.Output.FlushAsync();
-
-            return serializedLength;
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(messageBytes);
+            }
         }
 
         internal static int Serialize<T>(

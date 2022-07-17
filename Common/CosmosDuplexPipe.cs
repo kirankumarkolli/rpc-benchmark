@@ -266,6 +266,19 @@ using Microsoft.Azure.Cosmos.Core.Trace;
             ArrayPool<byte>.Shared.Return(messageBytes);
         }
 
+        public async Task NegotiateRntbdContextAsServer()
+        {
+            (UInt32 length, byte[] messageBytes) = await this.Reader.MoveNextAsync(isLengthCountedIn: true);
+
+            UInt32 connectionContextOffet = (UInt32)(sizeof(UInt32) + sizeof(UInt16) + sizeof(UInt16) + BytesSerializer.GetSizeOfGuid());
+            RntbdConstants.ConnectionContextRequest request = new RntbdConstants.ConnectionContextRequest();
+            Deserialize(messageBytes, connectionContextOffet, length - connectionContextOffet, request);
+            ArrayPool<byte>.Shared.Return(messageBytes);
+
+            // Send response 
+            await RntbdConstants.ConnectionContextResponse.Serialize(200, Guid.NewGuid(), this.Writer);
+        }
+
         private ValueTask<FlushResult> SendRntbdContext(
             bool enableChannelMultiplexing = true)
         {
