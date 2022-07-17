@@ -34,9 +34,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
                 Constants.Properties.TokenVersion,
                 string.Empty));
         
-        private readonly NetworkStream stream;
-        private readonly LengthPrefixPipeReader pipeReader;
-        private readonly PipeWriter pipeWriter;
+        private readonly Stream stream;
 
         private int nextRequestId = 0;
 
@@ -46,20 +44,18 @@ using Microsoft.Azure.Cosmos.Core.Trace;
         private static readonly Lazy<ConcurrentPrng> rng =
             new Lazy<ConcurrentPrng>(LazyThreadSafetyMode.ExecutionAndPublication);
 
-        private CosmosDuplexPipe(
-            NetworkStream ns,
-            LengthPrefixPipeReader reader, 
-            PipeWriter writer)
+        public CosmosDuplexPipe(Stream ns)
         {
-            this.stream = ns;
+            PipeReader pipeReader = PipeReader.Create(ns, new StreamPipeReaderOptions(leaveOpen: true));
+            this.Reader = new LengthPrefixPipeReader(pipeReader);
+            this.Writer = PipeWriter.Create(ns, new StreamPipeWriterOptions(leaveOpen: true));
 
-            this.pipeReader = reader;
-            this.pipeWriter = writer;
+            this.stream = ns;
         }
 
-        public LengthPrefixPipeReader Reader => this.pipeReader;
+        public LengthPrefixPipeReader Reader { get; }
 
-        public PipeWriter Writer => this.pipeWriter;
+        public PipeWriter Writer { get;  }
 
         public void Dispose()
         {
@@ -183,7 +179,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
                 int headerAndMetadataLength = metadataLength + rntbdRequest.CalculateLength(); // metadata tokens
                 int allocationLength = headerAndMetadataLength;
 
-                Memory<byte> bytes = this.pipeWriter.GetMemory(allocationLength);
+                Memory<byte> bytes = this.Writer.GetMemory(allocationLength);
                 BytesSerializer writer = new BytesSerializer(bytes.Span);
 
                 // header
@@ -202,8 +198,8 @@ using Microsoft.Azure.Cosmos.Core.Trace;
                     throw new Exception($"Unexpected length mis-match actualWritten:{actualWritten} allocationLength:{allocationLength}");
                 }
 
-                this.pipeWriter.Advance(allocationLength);
-                return this.pipeWriter.FlushAsync();
+                this.Writer.Advance(allocationLength);
+                return this.Writer.FlushAsync();
             }
         }
 
@@ -236,15 +232,9 @@ using Microsoft.Azure.Cosmos.Core.Trace;
                 enabledSslProtocols: SslProtocols.Tls12, 
                 checkCertificateRevocation: false);
 
-            var pipeWriter = PipeWriter.Create(sslStream, new StreamPipeWriterOptions(leaveOpen: true));
-            var pipeReader = PipeReader.Create(sslStream, new StreamPipeReaderOptions(leaveOpen: true));
-
-            CosmosDuplexPipe duplexPipe = new CosmosDuplexPipe(
-                    ns, 
-                    new LengthPrefixPipeReader(pipeReader), 
-                    pipeWriter);
-
+            CosmosDuplexPipe duplexPipe = new CosmosDuplexPipe(sslStream);
             await duplexPipe.NegotiateRntbdContextAsClient();
+
             return duplexPipe;
         }
 
@@ -300,7 +290,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
             int length = (sizeof(UInt32) + sizeof(UInt16) + sizeof(UInt16) + activityIdBytes.Length); // header
             length += request.CalculateLength(); // tokens
 
-            Memory<byte> bytes = this.pipeWriter.GetMemory(length);
+            Memory<byte> bytes = this.Writer.GetMemory(length);
             BytesSerializer writer = new BytesSerializer(bytes.Span);
 
             // header
@@ -311,9 +301,9 @@ using Microsoft.Azure.Cosmos.Core.Trace;
 
             // metadata
             request.SerializeToBinaryWriter(ref writer, out _);
-            this.pipeWriter.Advance(length);
+            this.Writer.Advance(length);
 
-            return this.pipeWriter.FlushAsync();
+            return this.Writer.FlushAsync();
         }
     }
 }
