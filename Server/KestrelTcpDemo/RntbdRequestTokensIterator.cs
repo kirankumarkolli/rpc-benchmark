@@ -15,11 +15,11 @@ namespace KestrelTcpDemo
         public RntbdRequestTokensIterator(
                 byte[] metadata, 
                 int startPoistion, 
-                int length)
+                int totalLength)
         {
             this.metadata = new Memory<byte>(metadata, 0, metadata.Length);
             this.Position = startPoistion;
-            this.Length = startPoistion + length;
+            this.TotalLength = totalLength;
 
             // Skip the meta-data context 
             this.Position += RntbdRequestTokensIterator.ContextLength;
@@ -27,13 +27,13 @@ namespace KestrelTcpDemo
 
         public int Position { get; private set; }
 
-        public int Length { get; }
+        public int TotalLength { get; }
 
         public bool HasPayload()
         {
             bool? hasPayload = null;
 
-            while (this.Position < this.Length
+            while (this.Position < this.TotalLength
                 && !hasPayload.HasValue)
             {
                 ushort identifier = this.ReadUInt16();
@@ -43,7 +43,7 @@ namespace KestrelTcpDemo
                 switch (tokenType)
                 {
                     case RntbdTokenTypes.Byte:
-                        if (identifier == (ushort)RequestIdentifiers.PayloadPresent)
+                        if (identifier == (ushort)ResponseIdentifiers.PayloadPresent)
                         {
                             byte readByte = this.ReadByte();
                             hasPayload = (readByte != 0x00);
@@ -115,7 +115,7 @@ namespace KestrelTcpDemo
             int? replicaPathUtf8Length = null;
             int? replicaPathLengthPosition = null;
 
-            while (this.Position < this.Length 
+            while (this.Position < this.TotalLength 
                 && ! (hasPayload.HasValue && replicaPath != null))
             {
                 ushort identifier = this.ReadUInt16();

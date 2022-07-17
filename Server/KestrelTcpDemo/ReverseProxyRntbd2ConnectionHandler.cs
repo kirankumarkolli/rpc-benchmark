@@ -53,7 +53,7 @@ namespace KestrelTcpDemo
             byte[] messageBytes)
         {
             // Process incoming request
-            CosmosDuplexPipe cosmosDuplexPipe = await this.ProcessRntbdMessageRewrite(
+            CosmosDuplexPipe outboundCosmosDuplexPipe = await this.ProcessRntbdMessageRewrite(
                 connectionId,
                 incomingCosmosDuplexPipe,
                 messageLength,
@@ -62,7 +62,7 @@ namespace KestrelTcpDemo
             // Process response stream (Synchronous)
             bool hasPayload = false;
             {
-                (UInt32 responseMetadataLength, byte[] responseMetadataBytes) = await cosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true);
+                (UInt32 responseMetadataLength, byte[] responseMetadataBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true);
 
                 try
                 {
@@ -80,7 +80,7 @@ namespace KestrelTcpDemo
 
             if (hasPayload)
             {
-                (UInt32 responsePayloadLength, byte[] responsePayloadBytes) = await cosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true);
+                (UInt32 responsePayloadLength, byte[] responsePayloadBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true);
 
                 try
                 {
@@ -152,8 +152,12 @@ namespace KestrelTcpDemo
                 byte[] messageBytes,
                 UInt32 messageLength)
         {
-            RntbdRequestTokensIterator iterator = new RntbdRequestTokensIterator(messageBytes, 0, (int)messageLength);
+            RntbdRequestTokensIterator iterator = new RntbdRequestTokensIterator(messageBytes,
+                0,
+                (int)messageLength);
             return iterator.HasPayload();
+
+            return true;
         }
 
         public static (bool hasPayload, string replicaPath, int replicaPathLengthPosition, int replicaPathUtf8Length) ExtractContext(
