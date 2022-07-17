@@ -23,11 +23,8 @@ using CosmosBenchmark;
 namespace KestrelTcpDemo
 {
     // This is the connection handler the framework uses to handle new incoming connections
-    internal class InMemoryRntbd2ConnectionHandler : ConnectionHandler
+    internal class InMemoryRntbd2ConnectionHandler : BaseRntbd2ConnectionHandler
     {
-        private readonly Func<Stream, SslStream> _sslStreamFactory;
-        private static ConcurrentDictionary<string, X509Certificate2> cachedCerts = new ConcurrentDictionary<string, X509Certificate2>();
-
         private readonly IComputeHash computeHash;
         internal static readonly string AuthKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
         private readonly byte[] testPayload;
@@ -36,125 +33,16 @@ namespace KestrelTcpDemo
         {
             computeHash = new StringHMACSHA256Hash(InMemoryRntbd2ConnectionHandler.AuthKey);
             testPayload = Encoding.UTF8.GetBytes(File.ReadAllText("TestData.json"));
-
-            _sslStreamFactory = s => new SslStream(s, leaveInnerStreamOpen: true, userCertificateValidationCallback: null);
         }
 
-        private SslDuplexPipe CreateSslDuplexPipe(IDuplexPipe transport, MemoryPool<byte> memoryPool)
+
+        public override async Task ProcessRntbdFlowsAsyncCore(string connectionId, CosmosDuplexPipe cosmosDuplexPipe)
         {
-            StreamPipeReaderOptions inputPipeOptions = new StreamPipeReaderOptions
-            (
-                pool: memoryPool,
-                //bufferSize: memoryPool.GetMinimumSegmentSize(),
-                //minimumReadSize: memoryPool.GetMinimumAllocSize(),
-                leaveOpen: true,
-                useZeroByteReads: true
-            );
-
-            var outputPipeOptions = new StreamPipeWriterOptions
-            (
-                pool: memoryPool,
-                leaveOpen: true
-            );
-
-            return new SslDuplexPipe(transport, inputPipeOptions, outputPipeOptions, _sslStreamFactory);
-        }
-
-        internal static X509Certificate2 GetServerCertificate(string serverName)
-        {
-            X509Store store = new X509Store("MY", StoreLocation.LocalMachine);
-            store.Open(OpenFlags.ReadOnly | OpenFlags.OpenExistingOnly);
-
-
-            foreach (X509Certificate2 x509 in store.Certificates)
+            // Code to parse length prefixed encoding
+            while (true)
             {
-                if (x509.HasPrivateKey)
-                {
-                    // TODO: Covering for "CN="
-                    if (x509.SubjectName.Name.EndsWith(serverName))
-                    {
-                        return x509;
-                    }
-                }
-            }
-
-            throw new Exception("GetServerCertificate didn't find any");
-        }
-
-        private async Task DoOptionsBasedHandshakeAsync(ConnectionContext context, SslStream sslStream, CancellationToken cancellationToken)
-        {
-            //var serverCert = GetServerCertificate("backend-fake");
-            var sslOptions = new SslServerAuthenticationOptions
-            {
-                //ServerCertificate = serverCert,
-                ServerCertificateSelectionCallback = (object sender, string? hostName) =>
-                {
-                    if (cachedCerts.TryGetValue(hostName, out X509Certificate2 cachedCert))
-                    {
-                        return cachedCert;
-                    }
-
-
-                    X509Certificate2 newCert = GetServerCertificate(hostName);
-                    cachedCerts.TryAdd(hostName, newCert);
-                    return newCert;
-                },
-                //ServerCertificateContext = SslStreamCertificateContext.Create(serverCert, additionalCertificates: null),
-                ClientCertificateRequired = false,
-                EnabledSslProtocols = SslProtocols.Tls12,
-                CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
-            };
-
-            await sslStream.AuthenticateAsServerAsync(sslOptions, cancellationToken);
-        }
-
-        public override async Task OnConnectedAsync(ConnectionContext context)
-        {
-            await using (context)
-            {
-                var sslDuplexPipe = CreateSslDuplexPipe(
-                    context.Transport,
-                    context.Features.Get<IMemoryPoolFeature>()?.MemoryPool ?? MemoryPool<byte>.Shared);
-                var sslStream = sslDuplexPipe.Stream;
-
-                // Server SSL auth
-                await DoOptionsBasedHandshakeAsync(context, sslStream, CancellationToken.None);
-                using (CosmosDuplexPipe cosmosDuplexPipe = new CosmosDuplexPipe(sslStream))
-                {
-                    // Process RntbdMessages
-                    await OnRntbdConnectionAsync(context.ConnectionId, cosmosDuplexPipe);
-                }
-            }
-        }
-
-        public async Task OnRntbdConnectionAsync(string connectionId, CosmosDuplexPipe cosmosDuplexPipe)
-        {
-            try
-            {
-                await cosmosDuplexPipe.NegotiateRntbdContextAsServer();
-
-                // Code to parse length prefixed encoding
-                while (true)
-                {
-                    (UInt32 messageLength, byte[] messagebytes) = await cosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true);
-                    int responseLength = await ProcessMessageAsync(connectionId, cosmosDuplexPipe, messageLength, messagebytes);
-                }
-            }
-            catch (ConnectionResetException ex)
-            {
-                Trace.TraceInformation(ex.ToString());
-            }
-            catch (InvalidOperationException ex) // Connection reset dring Read/Write
-            {
-                Trace.TraceError(ex.ToString());
-            }
-            finally
-            {
-                Trace.TraceWarning($"Connection {connectionId} completed");
-
-                // ConnectionContext.DisposeAsync() should take care of below
-                //await connection.Transport.Input.CompleteAsync();
-                //await connection.Transport.Output.CompleteAsync();
+                (UInt32 messageLength, byte[] messagebytes) = await cosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true);
+                int responseLength = await ProcessRntbdMessageAsync(connectionId, cosmosDuplexPipe, messageLength, messagebytes);
             }
         }
 
@@ -177,7 +65,7 @@ namespace KestrelTcpDemo
             request.ParseFrom(ref reader);
         }
 
-        private async Task<int> ProcessMessageAsync(
+        private async Task<int> ProcessRntbdMessageAsync(
             string connectionId,
             CosmosDuplexPipe cosmosDuplexPipe,
             UInt32 messageLength,
