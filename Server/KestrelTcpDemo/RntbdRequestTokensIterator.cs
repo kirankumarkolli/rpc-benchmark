@@ -7,8 +7,7 @@ using static Microsoft.Azure.Documents.RntbdConstants;
 
 namespace KestrelTcpDemo
 {
-    // TODO: Mark it ref struct
-    internal struct RntbdRequestTokensIterator
+    internal ref struct RntbdRequestTokensIterator
     {
         static int ContextLength = sizeof(UInt32) + sizeof(UInt16) + sizeof(UInt16) + BytesSerializer.GetSizeOfGuid();
         private readonly ReadOnlyMemory<byte> metadata;

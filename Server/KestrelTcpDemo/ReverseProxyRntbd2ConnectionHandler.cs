@@ -93,8 +93,7 @@ namespace KestrelTcpDemo
             //  1. Replica path     - RequestIdentifiers.ReplicaPath
             //  2. isPayloadPresent - RequestIdentifiers.PayloadPresent
 
-            RntbdRequestTokensIterator iterator = new RntbdRequestTokensIterator(messageBytes, 0, (int)messageLength);
-            (bool hasPaylad, string replicaPath, int replicaPathLengthPosition, int replicaPathLength) = iterator.ExtractContext();
+            (bool hasPaylad, string replicaPath, int replicaPathLengthPosition, int replicaPathLength) = ReverseProxyRntbd2ConnectionHandler.ExtractContext(messageBytes, messageLength);
             (string routingPathHint, string passThroughPath) = ReverseProxyRntbd2ConnectionHandler.SplitsParts(replicaPath);
             Uri routingTargetEndpoint = this.GetRouteToEndpoint(routingPathHint);
 
@@ -123,6 +122,14 @@ namespace KestrelTcpDemo
 
             await outBoundDuplexPipe.Writer.FlushAsync();
             return outBoundDuplexPipe;
+        }
+
+        public static (bool hasPayload, string replicaPath, int replicaPathLengthPosition, int replicaPathUtf8Length) ExtractContext(
+                byte[] messageBytes, 
+                UInt32 messageLength)
+        {
+            RntbdRequestTokensIterator iterator = new RntbdRequestTokensIterator(messageBytes, 0, (int)messageLength);
+            return iterator.ExtractContext();
         }
 
         private static void ReWriteReqeustReplicaPath(
