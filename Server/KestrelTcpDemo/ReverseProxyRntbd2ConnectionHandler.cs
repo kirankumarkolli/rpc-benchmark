@@ -60,22 +60,39 @@ namespace KestrelTcpDemo
                 messageBytes);
 
             // Process response stream (Synchronous)
+            bool hasPayload = false;
             {
                 (UInt32 responseMetadataLength, byte[] responseMetadataBytes) = await cosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true);
 
-                Memory<byte> memory = incomingCosmosDuplexPipe.Writer.GetMemory((int)responseMetadataLength);
-                responseMetadataBytes.CopyTo(memory);
-                incomingCosmosDuplexPipe.Writer.Advance((int)responseMetadataLength);
+                try
+                {
+                    hasPayload = ReverseProxyRntbd2ConnectionHandler.HasPayload(responseMetadataBytes, responseMetadataLength);
+
+                    Memory<byte> memory = incomingCosmosDuplexPipe.Writer.GetMemory((int)responseMetadataLength);
+                    responseMetadataBytes.CopyTo(memory);
+                    incomingCosmosDuplexPipe.Writer.Advance((int)responseMetadataLength);
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(responseMetadataBytes);
+                }
             }
 
-            // TODO: Assume payload is expected 
+            if (hasPayload)
             {
                 (UInt32 responsePayloadLength, byte[] responsePayloadBytes) = await cosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true);
 
-                int totalLength = (int)responsePayloadLength + sizeof(UInt32);
-                Memory<byte> memory = incomingCosmosDuplexPipe.Writer.GetMemory(totalLength);
-                responsePayloadBytes.AsSpan(0, totalLength).CopyTo(memory.Span);
-                incomingCosmosDuplexPipe.Writer.Advance(totalLength);
+                try
+                {
+                    int totalLength = (int)responsePayloadLength + sizeof(UInt32);
+                    Memory<byte> memory = incomingCosmosDuplexPipe.Writer.GetMemory(totalLength);
+                    responsePayloadBytes.AsSpan(0, totalLength).CopyTo(memory.Span);
+                    incomingCosmosDuplexPipe.Writer.Advance(totalLength);
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(responsePayloadBytes);
+                }
             }
 
             await incomingCosmosDuplexPipe.Writer.FlushAsync();
@@ -114,14 +131,29 @@ namespace KestrelTcpDemo
                 // Copy next message as well 
                 (UInt32 incomingPayloadLength, byte[] incomngPayloadBytes) = await incomingCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: false);
 
-                Memory<byte> payloadMemory = outBoundDuplexPipe.Writer.GetMemory((int)incomingPayloadLength);
-                incomngPayloadBytes.CopyTo(payloadMemory);
+                try
+                {
+                    Memory<byte> payloadMemory = outBoundDuplexPipe.Writer.GetMemory((int)incomingPayloadLength);
+                    incomngPayloadBytes.CopyTo(payloadMemory);
 
-                outBoundDuplexPipe.Writer.Advance((int)incomingPayloadLength);
+                    outBoundDuplexPipe.Writer.Advance((int)incomingPayloadLength);
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(incomngPayloadBytes);
+                }
             }
 
             await outBoundDuplexPipe.Writer.FlushAsync();
             return outBoundDuplexPipe;
+        }
+
+        public static bool HasPayload(
+                byte[] messageBytes,
+                UInt32 messageLength)
+        {
+            RntbdRequestTokensIterator iterator = new RntbdRequestTokensIterator(messageBytes, 0, (int)messageLength);
+            return iterator.HasPayload();
         }
 
         public static (bool hasPayload, string replicaPath, int replicaPathLengthPosition, int replicaPathUtf8Length) ExtractContext(

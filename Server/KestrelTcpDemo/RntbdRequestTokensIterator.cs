@@ -29,6 +29,85 @@ namespace KestrelTcpDemo
 
         public int Length { get; }
 
+        public bool HasPayload()
+        {
+            bool? hasPayload = null;
+
+            while (this.Position < this.Length
+                && !hasPayload.HasValue)
+            {
+                ushort identifier = this.ReadUInt16();
+                RntbdTokenTypes tokenType = (RntbdTokenTypes)this.ReadByte();
+
+
+                switch (tokenType)
+                {
+                    case RntbdTokenTypes.Byte:
+                        if (identifier == (ushort)RequestIdentifiers.PayloadPresent)
+                        {
+                            byte readByte = this.ReadByte();
+                            hasPayload = (readByte != 0x00);
+                        }
+                        else
+                        {
+                            this.Position++;
+                        }
+                        break;
+                    case RntbdTokenTypes.UShort:
+                        this.Position += 2;
+                        break;
+                    case RntbdTokenTypes.ULong:
+                        this.Position += 4;
+                        break;
+                    case RntbdTokenTypes.Long:
+                        this.Position += 4;
+                        break;
+                    case RntbdTokenTypes.ULongLong:
+                        this.Position += 8;
+                        break;
+                    case RntbdTokenTypes.LongLong:
+                        this.Position += 8;
+                        break;
+                    case RntbdTokenTypes.Float:
+                        this.Position += 4;
+                        break;
+                    case RntbdTokenTypes.Double:
+                        this.Position += 8;
+                        break;
+                    case RntbdTokenTypes.Guid:
+                        this.Position += 16;
+                        break;
+                    case RntbdTokenTypes.SmallBytes:
+                    case RntbdTokenTypes.SmallString:
+                        {
+                            byte bytesLength = this.ReadByte();
+                            this.Position += bytesLength;
+                            break;
+                        }
+                    case RntbdTokenTypes.Bytes:
+                    case RntbdTokenTypes.String:
+                        {
+                            ushort bytesLength = this.ReadUInt16();
+                            this.Position += bytesLength;
+                            break;
+                        }
+                    case RntbdTokenTypes.ULongBytes:
+                    case RntbdTokenTypes.ULongString:
+                        {
+                            UInt32 bytesLength = this.ReadUInt32();
+                            this.Position += (int)bytesLength;
+                            // token.value.valueBytes = reader.ReadBytes((int)length);
+                            break;
+                        }
+                    default:
+                        throw new Exception($"Unsupport RntbdToken type: {tokenType}");
+                }
+            }
+
+            Debug.Assert(hasPayload.HasValue);
+            return hasPayload.Value;
+        }
+
         public (bool hasPayload, string replicaPath, int replicaPathLengthPosition, int replicaPathUtf8Length) ExtractContext()
         {
             string replicaPath = null;
