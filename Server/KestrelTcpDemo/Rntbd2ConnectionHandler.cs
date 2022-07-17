@@ -23,7 +23,7 @@ using CosmosBenchmark;
 namespace KestrelTcpDemo
 {
     // This is the connection handler the framework uses to handle new incoming connections
-    internal class Rntbd2ConnectionHandler : ConnectionHandler
+    internal class InMemoryRntbd2ConnectionHandler : ConnectionHandler
     {
         private readonly Func<Stream, SslStream> _sslStreamFactory;
         private static ConcurrentDictionary<string, X509Certificate2> cachedCerts = new ConcurrentDictionary<string, X509Certificate2>();
@@ -32,9 +32,9 @@ namespace KestrelTcpDemo
         internal static readonly string AuthKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
         private readonly byte[] testPayload;
 
-        public Rntbd2ConnectionHandler()
+        public InMemoryRntbd2ConnectionHandler()
         {
-            computeHash = new StringHMACSHA256Hash(Rntbd2ConnectionHandler.AuthKey);
+            computeHash = new StringHMACSHA256Hash(InMemoryRntbd2ConnectionHandler.AuthKey);
             testPayload = Encoding.UTF8.GetBytes(File.ReadAllText("TestData.json"));
 
             _sslStreamFactory = s => new SslStream(s, leaveInnerStreamOpen: true, userCertificateValidationCallback: null);
@@ -239,7 +239,7 @@ namespace KestrelTcpDemo
                 totalResponselength += response.CalculateLength();
 
                 Memory<byte> bytes = cosmosDuplexPipe.Writer.GetMemory(totalResponselength);
-                int serializedLength = Rntbd2ConnectionHandler.Serialize(totalResponselength, 200, operationId, response, testPayload, bytes);
+                int serializedLength = InMemoryRntbd2ConnectionHandler.Serialize(totalResponselength, 200, operationId, response, testPayload, bytes);
 
                 cosmosDuplexPipe.Writer.Advance(serializedLength);
                 await cosmosDuplexPipe.Writer.FlushAsync();
