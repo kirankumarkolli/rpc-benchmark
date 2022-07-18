@@ -1,16 +1,26 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Text;
 using System.Threading.Tasks;
 using CosmosBenchmark;
 using Microsoft.Azure.Cosmos;
+using Microsoft.Azure.Cosmos.Common;
 using Microsoft.Azure.Cosmos.Rntbd;
 using Microsoft.Azure.Documents;
 using static Microsoft.Azure.Documents.RntbdConstants;
 
 namespace KestrelTcpDemo
 {
+    /// <summary>
+    /// TODO: 
+    /// 1. Reads are serialized
+    /// 2. Avoid full reqeuest bytes materialization
+    /// 3. Sharing outbound connections across incoming connections
+    ///     a. Dynamic #connection managment (based on bounds)
+    ///     b. MUX handling (TransportRequestId)
+    /// </summary>
     internal class ReverseProxyRntbd2ConnectionHandler : BaseRntbd2ConnectionHandler
     {
         public ReverseProxyRntbd2ConnectionHandler()
@@ -21,9 +31,7 @@ namespace KestrelTcpDemo
         {
             // Each incoming connection will have its own out-bound connections
             // I.e. for an account its possible that #connections = <#incoming-connections>*<#replica-endpoints>
-
-            // TODO: Replace concurrent dict with AsyncCache
-            ConcurrentDictionary<string, CosmosDuplexPipe> outboundConnections = new ConcurrentDictionary<string, CosmosDuplexPipe>();
+            AsyncCache<string, CosmosDuplexPipe> outboundConnections = new AsyncCache<string, CosmosDuplexPipe>();
 
             while (true)
             {
@@ -32,10 +40,10 @@ namespace KestrelTcpDemo
                 try
                 {
                     await this.ProcessRntbdMessageAsync(
-                        connectionId, 
-                        cosmosDuplexPipe, 
+                        connectionId,
+                        cosmosDuplexPipe,
                         outboundConnections,
-                        messageLength, 
+                        messageLength,
                         messagebytes);
                 }
                 finally
@@ -48,7 +56,7 @@ namespace KestrelTcpDemo
         private async Task ProcessRntbdMessageAsync(
             string connectionId,
             CosmosDuplexPipe incomingCosmosDuplexPipe,
-            ConcurrentDictionary<string, CosmosDuplexPipe> outboundConnections,
+            AsyncCache<string, CosmosDuplexPipe> outboundConnections,
             UInt32 messageLength,
             byte[] messageBytes)
         {
@@ -56,6 +64,7 @@ namespace KestrelTcpDemo
             CosmosDuplexPipe outboundCosmosDuplexPipe = await this.ProcessRntbdMessageRewrite(
                 connectionId,
                 incomingCosmosDuplexPipe,
+                outboundConnections,
                 messageLength,
                 messageBytes);
 
@@ -71,6 +80,8 @@ namespace KestrelTcpDemo
                     Memory<byte> memory = incomingCosmosDuplexPipe.Writer.GetMemory((int)responseMetadataLength);
                     responseMetadataBytes.CopyTo(memory);
                     incomingCosmosDuplexPipe.Writer.Advance((int)responseMetadataLength);
+
+                    await incomingCosmosDuplexPipe.Writer.FlushAsync();
                 }
                 finally
                 {
@@ -80,27 +91,27 @@ namespace KestrelTcpDemo
 
             if (hasPayload)
             {
-                (UInt32 responsePayloadLength, byte[] responsePayloadBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true);
+                (UInt32 responsePayloadLength, byte[] responsePayloadBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: false);
 
                 try
                 {
-                    int totalLength = (int)responsePayloadLength + sizeof(UInt32);
-                    Memory<byte> memory = incomingCosmosDuplexPipe.Writer.GetMemory(totalLength);
-                    responsePayloadBytes.AsSpan(0, totalLength).CopyTo(memory.Span);
-                    incomingCosmosDuplexPipe.Writer.Advance(totalLength);
+                    Memory<byte> memory = incomingCosmosDuplexPipe.Writer.GetMemory((int)responsePayloadLength);
+                    responsePayloadBytes.AsSpan(0, (int)responsePayloadLength).CopyTo(memory.Span);
+                    incomingCosmosDuplexPipe.Writer.Advance((int)responsePayloadLength);
+
+                    await incomingCosmosDuplexPipe.Writer.FlushAsync();
                 }
                 finally
                 {
                     ArrayPool<byte>.Shared.Return(responsePayloadBytes);
                 }
             }
-
-            await incomingCosmosDuplexPipe.Writer.FlushAsync();
         }
 
         private async Task<CosmosDuplexPipe> ProcessRntbdMessageRewrite(
             string connectionId,
             CosmosDuplexPipe incomingCosmosDuplexPipe,
+            AsyncCache<string, CosmosDuplexPipe> outboundConnections,
             UInt32 messageLength,
             byte[] messageBytes)
         {
@@ -116,15 +127,18 @@ namespace KestrelTcpDemo
 
             ReadOnlyMemory<byte> updatedReplicaPathMemory = GetBytesForString(passThroughPath);
 
-            // TODO: Write updated payload 
-            CosmosDuplexPipe outBoundDuplexPipe = await CosmosDuplexPipe.ConnectAsClientAsync(routingTargetEndpoint);
+            // Get the outbound cosmos duplex pipe
+            CosmosDuplexPipe outboundDuplexPipe = await outboundConnections.GetAsync(routingTargetEndpoint.AbsoluteUri,
+                null,
+                () => CosmosDuplexPipe.ConnectAsClientAsync(routingTargetEndpoint),
+                cancellationToken: default);
 
             ReverseProxyRntbd2ConnectionHandler.ReWriteReqeustReplicaPath(messageBytes,
                 (int)messageLength,
-                replicaPathLengthPosition, 
-                replicaPathLength, 
-                updatedReplicaPathMemory, 
-                outBoundDuplexPipe);
+                replicaPathLengthPosition,
+                replicaPathLength,
+                updatedReplicaPathMemory,
+                outboundDuplexPipe);
 
             if (hasPaylad) //TODO: Combine with metadata write?? 
             {
@@ -133,10 +147,10 @@ namespace KestrelTcpDemo
 
                 try
                 {
-                    Memory<byte> payloadMemory = outBoundDuplexPipe.Writer.GetMemory((int)incomingPayloadLength);
+                    Memory<byte> payloadMemory = outboundDuplexPipe.Writer.GetMemory((int)incomingPayloadLength);
                     incomngPayloadBytes.CopyTo(payloadMemory);
 
-                    outBoundDuplexPipe.Writer.Advance((int)incomingPayloadLength);
+                    outboundDuplexPipe.Writer.Advance((int)incomingPayloadLength);
                 }
                 finally
                 {
@@ -144,8 +158,8 @@ namespace KestrelTcpDemo
                 }
             }
 
-            await outBoundDuplexPipe.Writer.FlushAsync();
-            return outBoundDuplexPipe;
+            await outboundDuplexPipe.Writer.FlushAsync();
+            return outboundDuplexPipe;
         }
 
         public static bool HasPayload(
@@ -156,8 +170,6 @@ namespace KestrelTcpDemo
                 0,
                 (int)messageLength);
             return iterator.HasPayload();
-
-            return true;
         }
 
         public static (bool hasPayload, string replicaPath, int replicaPathLengthPosition, int replicaPathUtf8Length) ExtractContext(
