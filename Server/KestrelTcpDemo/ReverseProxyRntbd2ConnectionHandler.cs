@@ -70,11 +70,6 @@ namespace KestrelTcpDemo
             // Running sequencially
             //await ProcessResponseAndPayloadAsync(incomingCosmosDuplexPipe, outboundCosmosDuplexPipe);
 
-            // Running in decoupled mode
-            ProcessResponseAndPayloadAsync(incomingCosmosDuplexPipe, outboundCosmosDuplexPipe).ContinueWith((task) =>
-             {
-                 Trace.TraceError(task.Exception.ToString());
-             }, TaskContinuationOptions.OnlyOnFaulted);
         }
 
         private async Task<CosmosDuplexPipe> ProcessRntbdMessageRewrite(
@@ -91,6 +86,8 @@ namespace KestrelTcpDemo
             //  2. isPayloadPresent - RequestIdentifiers.PayloadPresent
 
             (bool hasPaylad, string replicaPath, int replicaPathLengthPosition, int replicaPathLength) = ReverseProxyRntbd2ConnectionHandler.ExtractContext(messageBytes, messageLength);
+            var g = Guid.NewGuid().ToString();
+            Console.WriteLine("["+g+"] INCOMING " + replicaPath);
             (string routingPathHint, string passThroughPath) = ReverseProxyRntbd2ConnectionHandler.SplitsParts(replicaPath);
             Uri routingTargetEndpoint = this.GetRouteToEndpoint(routingPathHint);
 
@@ -99,7 +96,17 @@ namespace KestrelTcpDemo
             // Get the outbound cosmos duplex pipe
             CosmosDuplexPipe outboundDuplexPipe = await outboundConnections.GetAsync(routingTargetEndpoint.AbsoluteUri,
                 null,
-                () => CosmosDuplexPipe.ConnectAsClientAsync(routingTargetEndpoint),
+                async () =>
+                {
+                    var outboundCosmosDuplexPipe = await CosmosDuplexPipe.ConnectAsClientAsync(routingTargetEndpoint);
+
+                    ProcessResponseAndPayloadAsync(incomingCosmosDuplexPipe, outboundCosmosDuplexPipe, replicaPath).ContinueWith((task) =>
+                     {
+                         Trace.TraceError(task.Exception.ToString());
+                     }, TaskContinuationOptions.OnlyOnFaulted);
+
+                    return outboundCosmosDuplexPipe;
+                },
                 cancellationToken: default);
 
             await ProcessRequestAndPayloadAsync(messageBytes,
@@ -110,7 +117,7 @@ namespace KestrelTcpDemo
                 incomingCosmosDuplexPipe,
                 outboundDuplexPipe,
                 hasPaylad);
-            
+            Console.WriteLine("[" + g + "] INCOMING " + replicaPath);
             return outboundDuplexPipe;
         }
 
@@ -119,7 +126,8 @@ namespace KestrelTcpDemo
         /// </summary>
         private static async Task ProcessResponseAndPayloadAsync(
             CosmosDuplexPipe incomingCosmosDuplexPipe,
-            CosmosDuplexPipe outboundCosmosDuplexPipe)
+            CosmosDuplexPipe outboundCosmosDuplexPipe,
+            string replicaPath)
         {
             //// Process response stream (Synchronous)
             //bool hasPayload = false;
@@ -163,24 +171,23 @@ namespace KestrelTcpDemo
             //}
 
             bool hasPayload = false;
+            
+            (UInt32 responseMetadataLength, byte[] responseMetadataBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true);
+            var g = Guid.NewGuid().ToString();
+            Console.WriteLine("["+g+"] OUTGOING " + replicaPath);
+            try
             {
-                (UInt32 responseMetadataLength, byte[] responseMetadataBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true);
+                hasPayload = ReverseProxyRntbd2ConnectionHandler.HasPayload(responseMetadataBytes, responseMetadataLength);
 
-                try
-                {
-                    hasPayload = ReverseProxyRntbd2ConnectionHandler.HasPayload(responseMetadataBytes, responseMetadataLength);
-
-                    await incomingCosmosDuplexPipe.Writer.GetMemoryAndFlushAsync((int)responseMetadataLength,
-                        (memory) =>
-                        {
-                            responseMetadataBytes.CopyTo(memory);
-                        });
-                }
-                finally
-                {
-                    ArrayPool<byte>.Shared.Return(responseMetadataBytes);
-                }
-
+                await incomingCosmosDuplexPipe.Writer.GetMemoryAndFlushAsync((int)responseMetadataLength,
+                    (memory) =>
+                    {
+                        responseMetadataBytes.CopyTo(memory);
+                    });
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(responseMetadataBytes);
             }
 
             if (hasPayload)
@@ -200,7 +207,7 @@ namespace KestrelTcpDemo
                 }
             }
 
-            Console.WriteLine("OUTGOING");
+            Console.WriteLine("[" + g+"] OUTGOING " + replicaPath);
         }
 
         private static async Task ProcessRequestAndPayloadAsync(byte[] incomingMessageBytes,
