@@ -36,16 +36,20 @@ namespace KestrelTcpDemo
         }
 
 
-        public override async Task ProcessRntbdFlowsAsyncCore(string connectionId, CosmosDuplexPipe cosmosDuplexPipe)
+        public override async Task ProcessRntbdFlowsAsyncCore(
+            string connectionId, 
+            CosmosDuplexPipe cosmosDuplexPipe)
         {
+            CancellationToken cancellationToken = CancellationToken.None;
+
             // Code to parse length prefixed encoding
             while (true)
             {
-                (UInt32 messageLength, byte[] messagebytes) = await cosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true);
+                (UInt32 messageLength, byte[] messagebytes) = await cosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true, CancellationToken.None);
 
                 try
                 {
-                    int responseLength = await ProcessRntbdMessageAsync(connectionId, cosmosDuplexPipe, messageLength, messagebytes);
+                    int responseLength = await ProcessRntbdMessageAsync(connectionId, cosmosDuplexPipe, messageLength, messagebytes, cancellationToken);
                 }
                 finally
                 {
@@ -77,7 +81,8 @@ namespace KestrelTcpDemo
             string connectionId,
             CosmosDuplexPipe cosmosDuplexPipe,
             UInt32 messageLength,
-            byte[] messagebytes)
+            byte[] messagebytes,
+            CancellationToken cancellationToken)
         {
             Request request = new Request();
             DeserializeReqeust(
@@ -92,7 +97,7 @@ namespace KestrelTcpDemo
             if (request.payloadPresent.isPresent
                 && request.payloadPresent.value.valueByte != 0x00)
             {
-                (UInt32 payloadLength, byte[] payloadBytes) = await cosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: false);
+                (UInt32 payloadLength, byte[] payloadBytes) = await cosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: false, cancellationToken);
                 ArrayPool<byte>.Shared.Return(payloadBytes);
             }
 

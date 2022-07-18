@@ -85,7 +85,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
         {
             await this.SendReadRequestAsync(replicaPath, databaseName, contaienrName, itemName, partitionKey);
 
-            (UInt32 messageLength, byte[] messageBytes) = await this.Reader.MoveNextAsync(isLengthCountedIn: true);
+            (UInt32 messageLength, byte[] messageBytes) = await this.Reader.MoveNextAsync(isLengthCountedIn: true, CancellationToken.None);
 
             // TODO: Incoming context validation 
             // sizeof(UInt32) -> Length-prefix
@@ -104,7 +104,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
             if (response.payloadPresent.isPresent && response.payloadPresent.value.valueByte != 0x00)
             {
                 // Payload is present 
-                (messageLength, byte[] payloadBytes) = await this.Reader.MoveNextAsync(isLengthCountedIn: false);
+                (messageLength, byte[] payloadBytes) = await this.Reader.MoveNextAsync(isLengthCountedIn: false, CancellationToken.None);
                 ArrayPool<byte>.Shared.Return(payloadBytes);
             }
 
@@ -251,7 +251,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
         {
             await this.SendRntbdContext();
 
-            (UInt32 length, byte[] messageBytes) = await this.Reader.MoveNextAsync(isLengthCountedIn: true);
+            (UInt32 length, byte[] messageBytes) = await this.Reader.MoveNextAsync(isLengthCountedIn: true, CancellationToken.None);
 
             // TODO: Incoming context validation 
             // sizeof(UInt32) -> Length-prefix
@@ -267,7 +267,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
 
         public async Task NegotiateRntbdContextAsServer()
         {
-            (UInt32 length, byte[] messageBytes) = await this.Reader.MoveNextAsync(isLengthCountedIn: true);
+            (UInt32 length, byte[] messageBytes) = await this.Reader.MoveNextAsync(isLengthCountedIn: true, CancellationToken.None);
 
             UInt32 connectionContextOffet = (UInt32)(sizeof(UInt32) + sizeof(UInt16) + sizeof(UInt16) + BytesSerializer.GetSizeOfGuid());
             RntbdConstants.ConnectionContextRequest request = new RntbdConstants.ConnectionContextRequest();
