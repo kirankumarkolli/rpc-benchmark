@@ -25,41 +25,41 @@ namespace KestrelTcpDemo
                         // This shows how a custom framework could plug in an experience without using Kestrel APIs directly
                         if (args != null && args.Length > 0)
                         {
-                            services.AddFramework(new IPEndPoint(IPAddress.Any, 8009), args[0]);
+                            services.AddFramework(new IPEndPoint(IPAddress.Loopback, 8009), args[0]);
                         }
                         else
                         {
-                            services.AddFramework(new IPEndPoint(IPAddress.Any, 8009), null);
+                            services.AddFramework(new IPEndPoint(IPAddress.Loopback, 8009), null);
                         }
                     })
                 .UseKestrel(options =>
                     {
-                        options.ListenAnyIP(7070, listenOptions =>
-                            {
-                                listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1;
+                        //options.ListenAnyIP(7070, listenOptions =>
+                        //    {
+                        //        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http1;
 
-                                if (args != null && args.Length > 0)
-                                {
-                                    listenOptions.UseHttps(StoreName.My, args[0], true, StoreLocation.LocalMachine);
-                                }
-                                else
-                                {
-                                    listenOptions.UseHttps();
-                                }
-                            });
+                        //        if (args != null && args.Length > 0)
+                        //        {
+                        //            listenOptions.UseHttps(StoreName.My, args[0], true, StoreLocation.LocalMachine);
+                        //        }
+                        //        else
+                        //        {
+                        //            listenOptions.UseHttps();
+                        //        }
+                        //    });
 
-                        options.ListenAnyIP(8080, listenOptions =>
-                            {
-                                listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
-                                if (args != null && args.Length > 0)
-                                {
-                                    listenOptions.UseHttps(StoreName.My, args[0], true, StoreLocation.LocalMachine);
-                                }
-                                else
-                                {
-                                    listenOptions.UseHttps();
-                                }
-                            });
+                        //options.ListenAnyIP(8080, listenOptions =>
+                        //    {
+                        //        listenOptions.Protocols = Microsoft.AspNetCore.Server.Kestrel.Core.HttpProtocols.Http2;
+                        //        if (args != null && args.Length > 0)
+                        //        {
+                        //            listenOptions.UseHttps(StoreName.My, args[0], true, StoreLocation.LocalMachine);
+                        //        }
+                        //        else
+                        //        {
+                        //            listenOptions.UseHttps();
+                        //        }
+                        //    });
 
                         // HTTP3
                         //options.ListenLocalhost(9090,

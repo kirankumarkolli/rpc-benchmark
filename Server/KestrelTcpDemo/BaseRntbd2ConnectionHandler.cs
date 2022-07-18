@@ -53,7 +53,7 @@ namespace KestrelTcpDemo
 
         internal static X509Certificate2 GetServerCertificate(string serverName)
         {
-            X509Store store = new X509Store("MY", StoreLocation.LocalMachine);
+            X509Store store = new X509Store("MY", StoreLocation.CurrentUser);
             store.Open(OpenFlags.ReadOnly | OpenFlags.OpenExistingOnly);
 
 
@@ -84,7 +84,6 @@ namespace KestrelTcpDemo
                     {
                         return cachedCert;
                     }
-
 
                     X509Certificate2 newCert = GetServerCertificate(hostName);
                     cachedCerts.TryAdd(hostName, newCert);

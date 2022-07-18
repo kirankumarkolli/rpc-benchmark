@@ -48,14 +48,14 @@ using Microsoft.Azure.Cosmos.Core.Trace;
         {
             PipeReader pipeReader = PipeReader.Create(ns, new StreamPipeReaderOptions(leaveOpen: true));
             this.Reader = new LengthPrefixPipeReader(pipeReader);
-            this.Writer = PipeWriter.Create(ns, new StreamPipeWriterOptions(leaveOpen: true));
+            this.Writer = new LimitedPipeWriter(PipeWriter.Create(ns, new StreamPipeWriterOptions(leaveOpen: true)));
 
             this.stream = ns;
         }
 
         public LengthPrefixPipeReader Reader { get; }
 
-        public PipeWriter Writer { get;  }
+        public LimitedPipeWriter Writer { get;  }
 
         public void Dispose()
         {
@@ -179,27 +179,26 @@ using Microsoft.Azure.Cosmos.Core.Trace;
                 int headerAndMetadataLength = metadataLength + rntbdRequest.CalculateLength(); // metadata tokens
                 int allocationLength = headerAndMetadataLength;
 
-                Memory<byte> bytes = this.Writer.GetMemory(allocationLength);
-                BytesSerializer writer = new BytesSerializer(bytes.Span);
+                return this.Writer.GetMemoryAndFlushAsync(allocationLength,
+                    (bytes) => {
+                        BytesSerializer writer = new BytesSerializer(bytes.Span);
 
-                // header
-                writer.Write((uint)headerAndMetadataLength);
-                writer.Write((ushort)RntbdConstants.RntbdResourceType.Document);
-                writer.Write((ushort)RntbdConstants.RntbdOperationType.Read);
-                writer.Write(activityId);
-                int actualWritten = metadataLength;
+                        // header
+                        writer.Write((uint)headerAndMetadataLength);
+                        writer.Write((ushort)RntbdConstants.RntbdResourceType.Document);
+                        writer.Write((ushort)RntbdConstants.RntbdOperationType.Read);
+                        writer.Write(activityId);
+                        int actualWritten = metadataLength;
 
-                // metadata
-                rntbdRequest.SerializeToBinaryWriter(ref writer, out int tokensLength);
-                actualWritten += tokensLength;
+                        // metadata
+                        rntbdRequest.SerializeToBinaryWriter(ref writer, out int tokensLength);
+                        actualWritten += tokensLength;
 
-                if (actualWritten != allocationLength)
-                {
-                    throw new Exception($"Unexpected length mis-match actualWritten:{actualWritten} allocationLength:{allocationLength}");
-                }
-
-                this.Writer.Advance(allocationLength);
-                return this.Writer.FlushAsync();
+                        if (actualWritten != allocationLength)
+                        {
+                            throw new Exception($"Unexpected length mis-match actualWritten:{actualWritten} allocationLength:{allocationLength}");
+                        }
+                    });
             }
         }
 
@@ -276,7 +275,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
             ArrayPool<byte>.Shared.Return(messageBytes);
 
             // Send response 
-            await RntbdConstants.ConnectionContextResponse.Serialize(200, Guid.NewGuid(), this.Writer);
+            await RntbdConstants.ConnectionContextResponse.Serialize(200, Guid.NewGuid(), this.Writer.PipeWriter);
         }
 
         private ValueTask<FlushResult> SendRntbdContext(
@@ -303,20 +302,20 @@ using Microsoft.Azure.Cosmos.Core.Trace;
             int length = (sizeof(UInt32) + sizeof(UInt16) + sizeof(UInt16) + activityIdBytes.Length); // header
             length += request.CalculateLength(); // tokens
 
-            Memory<byte> bytes = this.Writer.GetMemory(length);
-            BytesSerializer writer = new BytesSerializer(bytes.Span);
+            return this.Writer.GetMemoryAndFlushAsync(length,
+                    (bytes) =>
+                    {
+                        BytesSerializer writer = new BytesSerializer(bytes.Span);
 
-            // header
-            writer.Write(length);
-            writer.Write((ushort)RntbdConstants.RntbdResourceType.Connection);
-            writer.Write((ushort)RntbdConstants.RntbdOperationType.Connection);
-            writer.Write(activityIdBytes);
+                        // header
+                        writer.Write(length);
+                        writer.Write((ushort)RntbdConstants.RntbdResourceType.Connection);
+                        writer.Write((ushort)RntbdConstants.RntbdOperationType.Connection);
+                        writer.Write(activityIdBytes);
 
-            // metadata
-            request.SerializeToBinaryWriter(ref writer, out _);
-            this.Writer.Advance(length);
-
-            return this.Writer.FlushAsync();
+                        // metadata
+                        request.SerializeToBinaryWriter(ref writer, out _);
+                    });
         }
     }
 }
