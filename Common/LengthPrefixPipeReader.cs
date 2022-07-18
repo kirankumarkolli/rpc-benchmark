@@ -6,6 +6,7 @@ using System.IO.Pipelines;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace CosmosBenchmark
@@ -27,7 +28,9 @@ namespace CosmosBenchmark
         ///     isLengthCountedIn (true) : It matches 
         ///     isLengthCountedIn (false): Differs by sizeof(UINT32) more
         /// </summary>
-        public async Task<(UInt32, byte[])> MoveNextAsync(bool isLengthCountedIn)
+        public async Task<(UInt32, byte[])> MoveNextAsync(
+                bool isLengthCountedIn,
+                CancellationToken cancellationToken)
         {
             UInt32 nextMessageLength = 0;
             if (readResult.HasValue
@@ -52,7 +55,10 @@ namespace CosmosBenchmark
             this.readResult = null;
             this.consumedBytesLength = 0;
 
-            (nextMessageLength, this.readResult) = await ReadLengthPrefixedMessageFullToConsume(this.pipeReader, isLengthCountedIn);
+            (nextMessageLength, this.readResult) = await ReadLengthPrefixedMessageFullToConsume(
+                                                                this.pipeReader, 
+                                                                isLengthCountedIn,
+                                                                cancellationToken);
             return ExtractMessage(nextMessageLength);
         }
 
@@ -98,11 +104,12 @@ namespace CosmosBenchmark
 
         private static async ValueTask<(UInt32, ReadResult)> ReadLengthPrefixedMessageFullToConsume(
             PipeReader pipeReader,
-            bool isLengthCountedIn)
+            bool isLengthCountedIn,
+            CancellationToken cancellationToken)
         {
             UInt32 length = 0;
 
-            ReadResult readResult = await pipeReader.ReadAtLeastAsync(4);
+            ReadResult readResult = await pipeReader.ReadAtLeastAsync(4, cancellationToken);
 
             var buffer = readResult.Buffer;
             if (!readResult.IsCompleted)
@@ -118,7 +125,7 @@ namespace CosmosBenchmark
                 if (buffer.Length < length) // Read at-least length (included length 4-bytes as well)
                 {
                     pipeReader.AdvanceTo(buffer.Start, readResult.Buffer.End); // Not yet consumed
-                    readResult = await pipeReader.ReadAtLeastAsync((int)length);
+                    readResult = await pipeReader.ReadAtLeastAsync((int)length, cancellationToken);
                 }
 
                 Debug.Assert(readResult.Buffer.Length >= length);

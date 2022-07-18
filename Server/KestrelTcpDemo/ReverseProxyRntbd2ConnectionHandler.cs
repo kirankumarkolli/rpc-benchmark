@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using CosmosBenchmark;
 using Microsoft.Azure.Cosmos;
@@ -32,18 +33,43 @@ namespace KestrelTcpDemo
             // Each incoming connection will have its own out-bound connections
             // I.e. for an account its possible that #connections = <#incoming-connections>*<#replica-endpoints>
             AsyncCache<string, CosmosDuplexPipe> outboundConnections = new AsyncCache<string, CosmosDuplexPipe>();
+            CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+
+            try
+            {
+                await ProcessRntbdFlowsCoreInernalAsync(
+                            connectionId, 
+                            cosmosDuplexPipe, 
+                            outboundConnections,
+                            cancellationTokenSource.Token);
+            }
+            finally
+            {
+                // Clean-up out bound connections 
+                cancellationTokenSource.Cancel();
+                await DisposeAllOutboundConnections(outboundConnections);
+            }
+        }
+
+        public async Task ProcessRntbdFlowsCoreInernalAsync(
+            string connectionId, 
+            CosmosDuplexPipe cosmosDuplexPipe,
+            AsyncCache<string, CosmosDuplexPipe> outboundConnections,
+            CancellationToken cancellationToken)
+        {
 
             while (true)
             {
-                (UInt32 messageLength, byte[] messagebytes) = await cosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true);
+                (UInt32 messageLength, byte[] messagebytes) = await cosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true, cancellationToken);
                 try
                 {
-                    await this.ProcessRntbdMessageAsync(
+                    await this.ProcessRntbdMessageRewriteAsync(
                                 connectionId,
                                 cosmosDuplexPipe,
                                 outboundConnections,
                                 messageLength,
-                                messagebytes);
+                                messagebytes,
+                                cancellationToken);
                 }
                 finally
                 {
@@ -52,31 +78,39 @@ namespace KestrelTcpDemo
             }
         }
 
-        private Task ProcessRntbdMessageAsync(
-            string connectionId,
-            CosmosDuplexPipe incomingCosmosDuplexPipe,
-            AsyncCache<string, CosmosDuplexPipe> outboundConnections,
-            UInt32 messageLength,
-            byte[] messageBytes)
+        private async Task DisposeAllOutboundConnections(AsyncCache<string, CosmosDuplexPipe> outboundConnections)
         {
-            return this.ProcessRntbdMessageRewrite(
-                    connectionId,
-                    incomingCosmosDuplexPipe,
-                    outboundConnections,
-                    messageLength,
-                    messageBytes);
 
+            try
+            {
+                foreach (string entryKey in outboundConnections.Keys)
+                {
+                    CosmosDuplexPipe outboundPipe = await outboundConnections.GetAsync(entryKey, 
+                            null, 
+                            () => Task.FromResult<CosmosDuplexPipe>(null), 
+                            CancellationToken.None);
+                    outboundPipe.Dispose();
+                }
+
+                outboundConnections.Clear();
+                outboundConnections = null;
+            }
+            catch (Exception ex)
+            {
+                Trace.TraceWarning($" {nameof(DisposeAllOutboundConnections)} failed with {ex.ToString()}");
+            }
         }
 
         /// <summary>
         /// Reads the complete message from <paramref name="incomingCosmosDuplexPipe"/> and opens a connection and starts a receive loop.
         /// </summary>
-        private async Task ProcessRntbdMessageRewrite(
+        private async Task ProcessRntbdMessageRewriteAsync(
             string connectionId,
             CosmosDuplexPipe incomingCosmosDuplexPipe,
             AsyncCache<string, CosmosDuplexPipe> outboundConnections,
             UInt32 messageLength,
-            byte[] messageBytes)
+            byte[] messageBytes,
+            CancellationToken cancellationToken)
         {
             // roueTo(replicaPath)
             // 
@@ -97,23 +131,29 @@ namespace KestrelTcpDemo
                 {
                     var outboundCosmosDuplexPipe = await CosmosDuplexPipe.ConnectAsClientAsync(routingTargetEndpoint);
 
-                    Task t = ProcessResponseAndPayloadAsync(incomingCosmosDuplexPipe, outboundCosmosDuplexPipe).ContinueWith((task) =>
-                     {
-                         Trace.TraceError(task.Exception.ToString());
-                     }, TaskContinuationOptions.OnlyOnFaulted);
+                    // Start the receiveloop (async task)
+                    Task backgroundTask = ProcessResponseAndPayloadAsync(
+                                                incomingCosmosDuplexPipe, 
+                                                outboundCosmosDuplexPipe,
+                                                cancellationToken)
+                                            .ContinueWith((task) =>
+                                             {
+                                                 Trace.TraceError(task.Exception.ToString());
+                                             }, TaskContinuationOptions.OnlyOnFaulted);
 
                     return outboundCosmosDuplexPipe;
                 },
                 cancellationToken: default);
 
             await ProcessRequestAndPayloadAsync(messageBytes,
-                (int)messageLength,
-                replicaPathLengthPosition,
-                replicaPathLength,
-                updatedReplicaPathMemory,
-                incomingCosmosDuplexPipe,
-                outboundDuplexPipe,
-                hasPaylad);
+                        (int)messageLength,
+                        replicaPathLengthPosition,
+                        replicaPathLength,
+                        updatedReplicaPathMemory,
+                        incomingCosmosDuplexPipe,
+                        outboundDuplexPipe,
+                        hasPaylad,
+                        cancellationToken);
         }
 
         /// <summary>
@@ -121,12 +161,13 @@ namespace KestrelTcpDemo
         /// </summary>
         private static async Task ProcessResponseAndPayloadAsync(
             CosmosDuplexPipe incomingCosmosDuplexPipe,
-            CosmosDuplexPipe outboundCosmosDuplexPipe)
+            CosmosDuplexPipe outboundCosmosDuplexPipe,
+            CancellationToken cancellationToken)
         {
-            while (true)
+            while (! cancellationToken.IsCancellationRequested)
             {
                 bool hasPayload = false;
-                (UInt32 responseMetadataLength, byte[] responseMetadataBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true);
+                (UInt32 responseMetadataLength, byte[] responseMetadataBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true, cancellationToken);
                 try
                 {
                     hasPayload = ReverseProxyRntbd2ConnectionHandler.HasPayload(responseMetadataBytes, responseMetadataLength);
@@ -144,7 +185,7 @@ namespace KestrelTcpDemo
 
                 if (hasPayload)
                 {
-                    (UInt32 responsePayloadLength, byte[] responsePayloadBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: false);
+                    (UInt32 responsePayloadLength, byte[] responsePayloadBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: false, cancellationToken);
                     try
                     {
                         await incomingCosmosDuplexPipe.Writer.GetMemoryAndFlushAsync((int)responsePayloadLength,
@@ -168,7 +209,8 @@ namespace KestrelTcpDemo
             ReadOnlyMemory<byte> updatedReplicaPathMemory,
             CosmosDuplexPipe incomingCosmosDuplexPipe,
             CosmosDuplexPipe outBoundDuplexPipe,
-            bool hasPayload)
+            bool hasPayload,
+            CancellationToken cancellationToken)
         {
             byte[] incomingPayloadBytes = null;
             UInt32 incomingPayloadLength;
@@ -178,7 +220,9 @@ namespace KestrelTcpDemo
                 int requiredMemoryLength = incomingMessageBytesLength - (incomingReplicaPathLength - updatedReplicaPathMemory.Length);
                 if (hasPayload)
                 {
-                    (incomingPayloadLength, incomingPayloadBytes) = await incomingCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: false);
+                    (incomingPayloadLength, incomingPayloadBytes) = await incomingCosmosDuplexPipe.Reader.MoveNextAsync(
+                                                                            isLengthCountedIn: false, 
+                                                                            cancellationToken: cancellationToken);
                     requiredMemoryLength += (int)incomingPayloadLength;
                 }
 
