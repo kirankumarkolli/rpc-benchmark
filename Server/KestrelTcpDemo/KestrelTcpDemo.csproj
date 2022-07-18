@@ -11,9 +11,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-  	<Compile Include="..\..\Common\**\*.cs">
-  	  <Link>Rntbd\%(RecursiveDir)%(FileName)%(Extension)</Link>			
+  	<Compile Include="..\..\Common\Kestral\*.cs">
+  	  <Link>Kestral\%(RecursiveDir)%(FileName)%(Extension)</Link>			
   	</Compile>
+    <Compile Include="..\..\Common\Rntbd\*.cs">
+      <Link>Rntbd\%(RecursiveDir)%(FileName)%(Extension)</Link>
+    </Compile>
+    <Compile Include="..\..\Common\*.cs">
+      <Link>Common\%(RecursiveDir)%(FileName)%(Extension)</Link>
+    </Compile>
   </ItemGroup>
   
   <ItemGroup>
