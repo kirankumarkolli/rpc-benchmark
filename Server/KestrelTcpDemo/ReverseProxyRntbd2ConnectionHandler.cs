@@ -39,11 +39,11 @@ namespace KestrelTcpDemo
                 try
                 {
                     await this.ProcessRntbdMessageAsync(
-                        connectionId,
-                        cosmosDuplexPipe,
-                        outboundConnections,
-                        messageLength,
-                        messagebytes);
+                                connectionId,
+                                cosmosDuplexPipe,
+                                outboundConnections,
+                                messageLength,
+                                messagebytes);
                 }
                 finally
                 {
@@ -61,52 +61,20 @@ namespace KestrelTcpDemo
         {
             // Process incoming request
             CosmosDuplexPipe outboundCosmosDuplexPipe = await this.ProcessRntbdMessageRewrite(
-                connectionId,
-                incomingCosmosDuplexPipe,
-                outboundConnections,
-                messageLength,
-                messageBytes);
+                    connectionId,
+                    incomingCosmosDuplexPipe,
+                    outboundConnections,
+                    messageLength,
+                    messageBytes);
 
-            
+            // Running sequencially
+            //await ProcessResponseAndPayloadAsync(incomingCosmosDuplexPipe, outboundCosmosDuplexPipe);
 
-            // Process response stream (Synchronous)
-            bool hasPayload = false;
-            {
-                (UInt32 responseMetadataLength, byte[] responseMetadataBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true);
-
-                try
-                {
-                    hasPayload = ReverseProxyRntbd2ConnectionHandler.HasPayload(responseMetadataBytes, responseMetadataLength);
-
-                    await incomingCosmosDuplexPipe.Writer.GetMemoryAndFlushAsync((int)responseMetadataLength,
-                        (memory) =>
-                        {
-                            responseMetadataBytes.CopyTo(memory);
-                        });
-                }
-                finally
-                {
-                    ArrayPool<byte>.Shared.Return(responseMetadataBytes);
-                }
-            }
-
-            if (hasPayload)
-            {
-                (UInt32 responsePayloadLength, byte[] responsePayloadBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: false);
-
-                try
-                {
-                    await incomingCosmosDuplexPipe.Writer.GetMemoryAndFlushAsync((int)responsePayloadLength,
-                        (memory) =>
-                        {
-                            responsePayloadBytes.CopyTo(memory);
-                        });
-                }
-                finally
-                {
-                    ArrayPool<byte>.Shared.Return(responsePayloadBytes);
-                }
-            }
+            // Running in decoupled mode
+            ProcessResponseAndPayloadAsync(incomingCosmosDuplexPipe, outboundCosmosDuplexPipe).ContinueWith((task) =>
+             {
+                 Trace.TraceError(task.Exception.ToString());
+             }, TaskContinuationOptions.OnlyOnFaulted);
         }
 
         private async Task<CosmosDuplexPipe> ProcessRntbdMessageRewrite(
@@ -144,6 +112,95 @@ namespace KestrelTcpDemo
                 hasPaylad);
             
             return outboundDuplexPipe;
+        }
+
+        /// <summary>
+        /// Read a response from the real service replica <paramref name="outboundCosmosDuplexPipe"/> and write it to the client through <paramref name="incomingCosmosDuplexPipe"/>.
+        /// </summary>
+        private static async Task ProcessResponseAndPayloadAsync(
+            CosmosDuplexPipe incomingCosmosDuplexPipe,
+            CosmosDuplexPipe outboundCosmosDuplexPipe)
+        {
+            //// Process response stream (Synchronous)
+            //bool hasPayload = false;
+            //UInt32 responsePayloadLength = 0;
+            //byte[] responsePayloadBytes = null;
+            //(UInt32 responseMetadataLength, byte[] responseMetadataBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true);
+
+            //try
+            //{
+            //    hasPayload = ReverseProxyRntbd2ConnectionHandler.HasPayload(responseMetadataBytes, responseMetadataLength);
+
+            //    if (hasPayload)
+            //    {
+            //        (responsePayloadLength, responsePayloadBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: false);
+            //    }
+
+            //    int totalRequestedMemory = (int)responseMetadataLength + (int)responsePayloadLength;
+
+            //    await incomingCosmosDuplexPipe.Writer.GetMemoryAndFlushAsync(totalRequestedMemory,
+            //        (memory) =>
+            //        {
+            //            responseMetadataBytes.CopyTo(memory);
+            //            if (hasPayload)
+            //            {
+            //                responsePayloadBytes.CopyTo(memory);
+            //            }
+            //        });
+            //}
+            //catch (Exception ex)
+            //{
+            //    Console.WriteLine("ProcessResponseAndPayloadAsync" + ex.ToString());
+            //}
+            //finally
+            //{
+            //    ArrayPool<byte>.Shared.Return(responseMetadataBytes);
+            //    if (hasPayload
+            //        && responsePayloadBytes != null)
+            //    {
+            //        ArrayPool<byte>.Shared.Return(responsePayloadBytes);
+            //    }
+            //}
+
+            bool hasPayload = false;
+            {
+                (UInt32 responseMetadataLength, byte[] responseMetadataBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true);
+
+                try
+                {
+                    hasPayload = ReverseProxyRntbd2ConnectionHandler.HasPayload(responseMetadataBytes, responseMetadataLength);
+
+                    await incomingCosmosDuplexPipe.Writer.GetMemoryAndFlushAsync((int)responseMetadataLength,
+                        (memory) =>
+                        {
+                            responseMetadataBytes.CopyTo(memory);
+                        });
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(responseMetadataBytes);
+                }
+
+            }
+
+            if (hasPayload)
+            {
+                (UInt32 responsePayloadLength, byte[] responsePayloadBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: false);
+                try
+                {
+                    await incomingCosmosDuplexPipe.Writer.GetMemoryAndFlushAsync((int)responsePayloadLength,
+                        (memory) =>
+                        {
+                            responsePayloadBytes.CopyTo(memory);
+                        });
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(responsePayloadBytes);
+                }
+            }
+
+            Console.WriteLine("OUTGOING");
         }
 
         private static async Task ProcessRequestAndPayloadAsync(byte[] incomingMessageBytes,

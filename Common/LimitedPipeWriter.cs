@@ -26,7 +26,7 @@ namespace CosmosBenchmark
 
         public PipeWriter PipeWriter => this.pipeWriter;
 
-        public async ValueTask<FlushResult> GetMemoryAndFlushAsync(
+        public async ValueTask GetMemoryAndFlushAsync(
             int allocationLength,
             Action<Memory<byte>> actOnMemory,
             CancellationToken cancellationToken = default)
@@ -37,7 +37,11 @@ namespace CosmosBenchmark
                 Memory<byte> bytes = this.pipeWriter.GetMemory(allocationLength);
                 actOnMemory(bytes);
                 this.pipeWriter.Advance(allocationLength);
-                return await this.pipeWriter.FlushAsync();
+                await this.pipeWriter.FlushAsync();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("LimitedPipeWriter" + ex.ToString());
             }
             finally
             {

@@ -83,7 +83,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
             string itemName,
             string partitionKey)
         {
-            FlushResult flushResult = await this.SendReadRequestAsync(replicaPath, databaseName, contaienrName, itemName, partitionKey);
+            await this.SendReadRequestAsync(replicaPath, databaseName, contaienrName, itemName, partitionKey);
 
             (UInt32 messageLength, byte[] messageBytes) = await this.Reader.MoveNextAsync(isLengthCountedIn: true);
 
@@ -111,7 +111,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
             ArrayPool<byte>.Shared.Return(messageBytes);
         }
 
-        public ValueTask<FlushResult> SendReadRequestAsync(
+        public ValueTask SendReadRequestAsync(
             string replicaPath, 
             string databaseName, 
             string contaienrName,
@@ -278,7 +278,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
             await RntbdConstants.ConnectionContextResponse.Serialize(200, Guid.NewGuid(), this.Writer.PipeWriter);
         }
 
-        private ValueTask<FlushResult> SendRntbdContext(
+        private ValueTask SendRntbdContext(
             bool enableChannelMultiplexing = true)
         {
             Guid activityId = Guid.NewGuid();
