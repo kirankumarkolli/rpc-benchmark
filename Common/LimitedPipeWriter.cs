@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 
 namespace CosmosBenchmark
 {
-    internal class LimitedPipeWriter
+    internal sealed class LimitedPipeWriter : IDisposable
     {
         private readonly PipeWriter pipeWriter;
         private readonly SemaphoreSlim semaphore;
@@ -25,6 +25,11 @@ namespace CosmosBenchmark
         }
 
         public PipeWriter PipeWriter => this.pipeWriter;
+
+        public void Dispose()
+        {
+            this.semaphore.Dispose();
+        }
 
         public async ValueTask GetMemoryAndFlushAsync(
             int allocationLength,

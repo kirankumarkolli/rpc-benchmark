@@ -44,11 +44,12 @@ namespace Kestrel.Clone
 
             await Input.CompleteAsync();
             await Output.CompleteAsync();
+            await base.DisposeAsync();
         }
 
         protected override void Dispose(bool disposing)
         {
-            throw new NotSupportedException();
+            base.Dispose(disposing);
         }
     }
 }
