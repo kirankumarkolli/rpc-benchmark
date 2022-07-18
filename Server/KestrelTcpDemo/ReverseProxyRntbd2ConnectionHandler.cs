@@ -97,7 +97,7 @@ namespace KestrelTcpDemo
                 {
                     var outboundCosmosDuplexPipe = await CosmosDuplexPipe.ConnectAsClientAsync(routingTargetEndpoint);
 
-                    ProcessResponseAndPayloadAsync(incomingCosmosDuplexPipe, outboundCosmosDuplexPipe).ContinueWith((task) =>
+                    Task t = ProcessResponseAndPayloadAsync(incomingCosmosDuplexPipe, outboundCosmosDuplexPipe).ContinueWith((task) =>
                      {
                          Trace.TraceError(task.Exception.ToString());
                      }, TaskContinuationOptions.OnlyOnFaulted);

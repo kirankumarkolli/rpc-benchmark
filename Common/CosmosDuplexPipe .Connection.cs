@@ -25,7 +25,7 @@ namespace CosmosBenchmark
 #if !NETSTANDARD15 && !NETSTANDARD16
             // This code should use RuntimeInformation.IsOSPlatform(OSPlatform.Windows),
             // but the feature is unavailable on .NET Framework 4.5.1.
-            if (Environment.OSVersion.Platform == PlatformID.Win32NT)
+            if (OperatingSystem.IsWindows())
             {
                 try
                 {

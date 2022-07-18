@@ -1,15 +1,16 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net7.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
     <ServerGarbageCollection>true</ServerGarbageCollection>
+    <Nullable>annotations</Nullable>
     <DefineConstants>$(DefineConstants)TRACE;COSMOSCLIENT</DefineConstants>
 
     <!-- Http3 is in preview -->
 	<EnablePreviewFeatures>True</EnablePreviewFeatures>
   </PropertyGroup>
-
+  <Import Project="$([MSBuild]::GetDirectoryNameOfFileAbove($(MSBuildThisFileDirectory), Build.props))\build.props" />
   <ItemGroup>
   	<Compile Include="..\..\Common\Kestral\*.cs">
   	  <Link>Kestral\%(RecursiveDir)%(FileName)%(Extension)</Link>			
@@ -23,6 +24,6 @@
   </ItemGroup>
   
   <ItemGroup>
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.2-beta1" />
+    <PackageReference Include="Newtonsoft.Json" VersionOverride="13.0.1" />
   </ItemGroup>
 </Project>
