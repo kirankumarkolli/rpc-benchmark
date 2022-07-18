@@ -185,6 +185,7 @@ namespace Microsoft.Azure.Documents
         protected override void Dispose(bool disposing)
         {
             this.internalStream.Dispose();
+            base.Dispose(disposing);
         }
 
         public void WriteTo(Stream target)

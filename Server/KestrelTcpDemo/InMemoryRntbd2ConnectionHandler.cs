@@ -23,7 +23,7 @@ using CosmosBenchmark;
 namespace KestrelTcpDemo
 {
     // This is the connection handler the framework uses to handle new incoming connections
-    internal class InMemoryRntbd2ConnectionHandler : BaseRntbd2ConnectionHandler
+    internal sealed class InMemoryRntbd2ConnectionHandler : BaseRntbd2ConnectionHandler, IDisposable
     {
         private readonly IComputeHash computeHash;
         internal static readonly string AuthKey = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
@@ -170,6 +170,11 @@ namespace KestrelTcpDemo
             writer.Write(payload);
 
             return totalResponselength + sizeof(UInt32) + payload.Length;
+        }
+
+        public void Dispose()
+        {
+            this.computeHash.Dispose();
         }
     }
 }
