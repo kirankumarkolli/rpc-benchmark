@@ -132,11 +132,12 @@ namespace KestrelTcpDemo
             int totalResponselength = sizeof(UInt32) + sizeof(UInt32) + 16;
             totalResponselength += response.CalculateLength();
 
-            Memory<byte> bytes = cosmosDuplexPipe.Writer.GetMemory(totalResponselength);
-            int serializedLength = InMemoryRntbd2ConnectionHandler.Serialize(totalResponselength, 200, operationId, response, testPayload, bytes);
-
-            cosmosDuplexPipe.Writer.Advance(serializedLength);
-            await cosmosDuplexPipe.Writer.FlushAsync();
+            int serializedLength = 0;
+            await cosmosDuplexPipe.Writer.GetMemoryAndFlushAsync(totalResponselength,
+                (bytes) =>
+                {
+                    serializedLength = InMemoryRntbd2ConnectionHandler.Serialize(totalResponselength, 200, operationId, response, testPayload, bytes);
+                });
 
             return serializedLength;
         }
