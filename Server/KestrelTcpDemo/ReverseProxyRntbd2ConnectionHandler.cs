@@ -52,27 +52,26 @@ namespace KestrelTcpDemo
             }
         }
 
-        private async Task ProcessRntbdMessageAsync(
+        private Task ProcessRntbdMessageAsync(
             string connectionId,
             CosmosDuplexPipe incomingCosmosDuplexPipe,
             AsyncCache<string, CosmosDuplexPipe> outboundConnections,
             UInt32 messageLength,
             byte[] messageBytes)
         {
-            // Process incoming request
-            CosmosDuplexPipe outboundCosmosDuplexPipe = await this.ProcessRntbdMessageRewrite(
+            return this.ProcessRntbdMessageRewrite(
                     connectionId,
                     incomingCosmosDuplexPipe,
                     outboundConnections,
                     messageLength,
                     messageBytes);
 
-            // Running sequencially
-            //await ProcessResponseAndPayloadAsync(incomingCosmosDuplexPipe, outboundCosmosDuplexPipe);
-
         }
 
-        private async Task<CosmosDuplexPipe> ProcessRntbdMessageRewrite(
+        /// <summary>
+        /// Reads the complete message from <paramref name="incomingCosmosDuplexPipe"/> and opens a connection and starts a receive loop.
+        /// </summary>
+        private async Task ProcessRntbdMessageRewrite(
             string connectionId,
             CosmosDuplexPipe incomingCosmosDuplexPipe,
             AsyncCache<string, CosmosDuplexPipe> outboundConnections,
@@ -86,8 +85,6 @@ namespace KestrelTcpDemo
             //  2. isPayloadPresent - RequestIdentifiers.PayloadPresent
 
             (bool hasPaylad, string replicaPath, int replicaPathLengthPosition, int replicaPathLength) = ReverseProxyRntbd2ConnectionHandler.ExtractContext(messageBytes, messageLength);
-            var g = Guid.NewGuid().ToString();
-            Console.WriteLine("["+g+"] INCOMING " + replicaPath);
             (string routingPathHint, string passThroughPath) = ReverseProxyRntbd2ConnectionHandler.SplitsParts(replicaPath);
             Uri routingTargetEndpoint = this.GetRouteToEndpoint(routingPathHint);
 
@@ -100,7 +97,7 @@ namespace KestrelTcpDemo
                 {
                     var outboundCosmosDuplexPipe = await CosmosDuplexPipe.ConnectAsClientAsync(routingTargetEndpoint);
 
-                    ProcessResponseAndPayloadAsync(incomingCosmosDuplexPipe, outboundCosmosDuplexPipe, replicaPath).ContinueWith((task) =>
+                    ProcessResponseAndPayloadAsync(incomingCosmosDuplexPipe, outboundCosmosDuplexPipe).ContinueWith((task) =>
                      {
                          Trace.TraceError(task.Exception.ToString());
                      }, TaskContinuationOptions.OnlyOnFaulted);
@@ -117,8 +114,6 @@ namespace KestrelTcpDemo
                 incomingCosmosDuplexPipe,
                 outboundDuplexPipe,
                 hasPaylad);
-            Console.WriteLine("[" + g + "] INCOMING " + replicaPath);
-            return outboundDuplexPipe;
         }
 
         /// <summary>
@@ -126,88 +121,44 @@ namespace KestrelTcpDemo
         /// </summary>
         private static async Task ProcessResponseAndPayloadAsync(
             CosmosDuplexPipe incomingCosmosDuplexPipe,
-            CosmosDuplexPipe outboundCosmosDuplexPipe,
-            string replicaPath)
+            CosmosDuplexPipe outboundCosmosDuplexPipe)
         {
-            //// Process response stream (Synchronous)
-            //bool hasPayload = false;
-            //UInt32 responsePayloadLength = 0;
-            //byte[] responsePayloadBytes = null;
-            //(UInt32 responseMetadataLength, byte[] responseMetadataBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true);
-
-            //try
-            //{
-            //    hasPayload = ReverseProxyRntbd2ConnectionHandler.HasPayload(responseMetadataBytes, responseMetadataLength);
-
-            //    if (hasPayload)
-            //    {
-            //        (responsePayloadLength, responsePayloadBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: false);
-            //    }
-
-            //    int totalRequestedMemory = (int)responseMetadataLength + (int)responsePayloadLength;
-
-            //    await incomingCosmosDuplexPipe.Writer.GetMemoryAndFlushAsync(totalRequestedMemory,
-            //        (memory) =>
-            //        {
-            //            responseMetadataBytes.CopyTo(memory);
-            //            if (hasPayload)
-            //            {
-            //                responsePayloadBytes.CopyTo(memory);
-            //            }
-            //        });
-            //}
-            //catch (Exception ex)
-            //{
-            //    Console.WriteLine("ProcessResponseAndPayloadAsync" + ex.ToString());
-            //}
-            //finally
-            //{
-            //    ArrayPool<byte>.Shared.Return(responseMetadataBytes);
-            //    if (hasPayload
-            //        && responsePayloadBytes != null)
-            //    {
-            //        ArrayPool<byte>.Shared.Return(responsePayloadBytes);
-            //    }
-            //}
-
-            bool hasPayload = false;
-            
-            (UInt32 responseMetadataLength, byte[] responseMetadataBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true);
-            var g = Guid.NewGuid().ToString();
-            Console.WriteLine("["+g+"] OUTGOING " + replicaPath);
-            try
+            while (true)
             {
-                hasPayload = ReverseProxyRntbd2ConnectionHandler.HasPayload(responseMetadataBytes, responseMetadataLength);
-
-                await incomingCosmosDuplexPipe.Writer.GetMemoryAndFlushAsync((int)responseMetadataLength,
-                    (memory) =>
-                    {
-                        responseMetadataBytes.CopyTo(memory);
-                    });
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(responseMetadataBytes);
-            }
-
-            if (hasPayload)
-            {
-                (UInt32 responsePayloadLength, byte[] responsePayloadBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: false);
+                bool hasPayload = false;
+                (UInt32 responseMetadataLength, byte[] responseMetadataBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true);
                 try
                 {
-                    await incomingCosmosDuplexPipe.Writer.GetMemoryAndFlushAsync((int)responsePayloadLength,
+                    hasPayload = ReverseProxyRntbd2ConnectionHandler.HasPayload(responseMetadataBytes, responseMetadataLength);
+
+                    await incomingCosmosDuplexPipe.Writer.GetMemoryAndFlushAsync((int)responseMetadataLength,
                         (memory) =>
                         {
-                            responsePayloadBytes.CopyTo(memory);
+                            responseMetadataBytes.CopyTo(memory);
                         });
                 }
                 finally
                 {
-                    ArrayPool<byte>.Shared.Return(responsePayloadBytes);
+                    ArrayPool<byte>.Shared.Return(responseMetadataBytes);
+                }
+
+                if (hasPayload)
+                {
+                    (UInt32 responsePayloadLength, byte[] responsePayloadBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: false);
+                    try
+                    {
+                        await incomingCosmosDuplexPipe.Writer.GetMemoryAndFlushAsync((int)responsePayloadLength,
+                            (memory) =>
+                            {
+                                responsePayloadBytes.CopyTo(memory);
+                            });
+                    }
+                    finally
+                    {
+                        ArrayPool<byte>.Shared.Return(responsePayloadBytes);
+                    }
                 }
             }
-
-            Console.WriteLine("[" + g+"] OUTGOING " + replicaPath);
         }
 
         private static async Task ProcessRequestAndPayloadAsync(byte[] incomingMessageBytes,
@@ -279,45 +230,6 @@ namespace KestrelTcpDemo
             RntbdRequestTokensIterator iterator = new RntbdRequestTokensIterator(messageBytes, 0, (int)messageLength);
             return iterator.ExtractContext();
         }
-
-        //private static void ReWriteReqeustReplicaPath(
-        //        byte[] incomingMessageBytes, 
-        //        int incomingMessageBytesLength,
-        //        int incomingReplicaPathLengthPosition, 
-        //        int incomingReplicaPathLength, 
-        //        ReadOnlyMemory<byte> updatedReplicaPathMemory, 
-        //        CosmosDuplexPipe outBoundDuplexPipe)
-        //{
-        //    int reWriteMessageLength = incomingMessageBytesLength - (incomingReplicaPathLength - updatedReplicaPathMemory.Length);
-        //    Memory<byte> rewriteMemory = outBoundDuplexPipe.Writer.GetMemory(reWriteMessageLength);
-
-        //    BytesSerializer writer = new BytesSerializer(rewriteMemory.Span);
-
-        //    writer.Write(reWriteMessageLength); // Length 
-
-        //    Span<byte> preReplicaPathBytes = incomingMessageBytes.AsSpan(sizeof(UInt32), incomingReplicaPathLengthPosition - sizeof(UInt32));
-        //    writer.Write(preReplicaPathBytes); // preReplicaPathBytes - Includes replicapath (identifier, type)
-
-        //    writer.Write((UInt16)updatedReplicaPathMemory.Length);
-        //    writer.Write(updatedReplicaPathMemory);
-
-        //    int postReplicaPathPosition = incomingReplicaPathLengthPosition + sizeof(UInt16) + incomingReplicaPathLength;
-        //    Span<byte> postReplicaPathBytes = incomingMessageBytes.AsSpan(postReplicaPathPosition, incomingMessageBytesLength - postReplicaPathPosition);
-        //    writer.Write(postReplicaPathBytes); // postReplicaPathBytes 
-
-        //    //Request request = new Request();
-        //    //byte[] rreWriteByes = rewriteMemory.ToArray();
-        //    //InMemoryRntbd2ConnectionHandler.DeserializeReqeust(B
-        //    //        rreWriteByes,
-        //    //        sizeof(UInt32),
-        //    //        (int)reWriteMessageLength - sizeof(UInt32),
-        //    //        out RntbdConstants.RntbdResourceType resourceType,
-        //    //        out RntbdConstants.RntbdOperationType operationType,
-        //    //        out Guid operationId,
-        //    //        request);
-
-        //    outBoundDuplexPipe.Writer.Advance(reWriteMessageLength);
-        //}
 
         private static ReadOnlyMemory<byte> GetBytesForString(string toConvert)
         {
