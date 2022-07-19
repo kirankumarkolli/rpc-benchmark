@@ -8,6 +8,7 @@ namespace Microsoft.Azure.Documents
     using System.Collections.Concurrent;
     using System.IO.Pipelines;
     using System.Text;
+    using System.Threading;
     using System.Threading.Tasks;
 
     internal static class RntbdConstants
@@ -192,7 +193,10 @@ namespace Microsoft.Azure.Documents
                 });
             }
 
-            public static async Task Serialize(UInt32 statusCode, Guid activityId, PipeWriter pipeWriter)
+            public static async Task Serialize(UInt32 statusCode, 
+                Guid activityId, 
+                PipeWriter pipeWriter, 
+                CancellationToken cancellationToken)
             {
                 // TODO: Fill right values 
                 RntbdConstants.ConnectionContextResponse contextResponse = new RntbdConstants.ConnectionContextResponse();
@@ -217,7 +221,7 @@ namespace Microsoft.Azure.Documents
                 Serialize(totalResponselength, statusCode, activityId, contextResponse, bytes);
                 pipeWriter.Advance(totalResponselength);
 
-                await pipeWriter.FlushAsync();
+                await pipeWriter.FlushAsync(cancellationToken);
             }
 
             internal static void Serialize<T>(
