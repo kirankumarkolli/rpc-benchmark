@@ -23,9 +23,9 @@ namespace CosmosBenchmark
     using static Microsoft.Azure.Documents.RntbdConstants;
     using System.Buffers;
     using System.Globalization;
-using Microsoft.Azure.Cosmos;
+    using Microsoft.Azure.Cosmos;
     using System.Collections.Concurrent;
-using Microsoft.Azure.Cosmos.Core.Trace;
+    using Microsoft.Azure.Cosmos.Core.Trace;
     using KestrelTcpDemo;
 
     internal partial class CosmosDuplexPipe : IDisposable
@@ -244,7 +244,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
         {
             await this.SendRntbdContext();
 
-            ReadOnlySequence<byte> messageBytesSequence = await this.Reader.MoveNextAsync(isLengthCountedIn: true, CancellationToken.None);
+            ReadOnlySequence<byte> messageBytesSequence = await this.Reader.MoveNextAsync(isLengthCountedIn: true, cancellationToken);
 
             // TODO: Incoming response validation 
             // sizeof(UInt32) -> Length-prefix
@@ -262,20 +262,15 @@ using Microsoft.Azure.Cosmos.Core.Trace;
 
         public async Task NegotiateRntbdContextAsServer(CancellationToken cancellationToken)
         {
-            ReadOnlySequence<byte> messageBytesSequence = await this.Reader.MoveNextAsync(isLengthCountedIn: true, CancellationToken.None);
+            ReadOnlySequence<byte> messageBytesSequence = await this.Reader.MoveNextAsync(isLengthCountedIn: true, cancellationToken);
 
             // TODO: Context validation 
             //UInt32 connectionContextOffet = (UInt32)(sizeof(UInt32) + sizeof(UInt16) + sizeof(UInt16) + BytesSerializer.GetSizeOfGuid());
             //RntbdConstants.ConnectionContextRequest request = new RntbdConstants.ConnectionContextRequest();
             // Deserialize(messageBytes, connectionContextOffet, length - connectionContextOffet, request);
 
-                // Send response 
-                await RntbdConstants.ConnectionContextResponse.Serialize(200, Guid.NewGuid(), this.Writer.PipeWriter, cancellationToken);
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(messageBytes);
-            }
+            // Send response 
+            await RntbdConstants.ConnectionContextResponse.Serialize(200, Guid.NewGuid(), this.Writer.PipeWriter, cancellationToken);
         }
 
         private ValueTask SendRntbdContext(
