@@ -44,10 +44,12 @@ using Microsoft.Azure.Cosmos.Core.Trace;
         private static readonly Lazy<ConcurrentPrng> rng =
             new Lazy<ConcurrentPrng>(LazyThreadSafetyMode.ExecutionAndPublication);
 
-        public CosmosDuplexPipe(Stream ns)
+        public CosmosDuplexPipe(
+            Stream ns,
+            string traceDiagnticsContext)
         {
             PipeReader pipeReader = PipeReader.Create(ns, new StreamPipeReaderOptions(leaveOpen: true));
-            this.Reader = new LengthPrefixPipeReader(pipeReader);
+            this.Reader = new LengthPrefixPipeReader(pipeReader, traceDiagnticsContext);
             this.Writer = new LimitedPipeWriter(PipeWriter.Create(ns, new StreamPipeWriterOptions(leaveOpen: true)));
 
             this.stream = ns;
@@ -231,7 +233,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
                 enabledSslProtocols: SslProtocols.Tls12, 
                 checkCertificateRevocation: false);
 
-            CosmosDuplexPipe duplexPipe = new CosmosDuplexPipe(sslStream);
+            CosmosDuplexPipe duplexPipe = new CosmosDuplexPipe(sslStream, $"LOCAL:{Environment.MachineName} -> {endpoint}");
             await duplexPipe.NegotiateRntbdContextAsClient();
 
             return duplexPipe;
