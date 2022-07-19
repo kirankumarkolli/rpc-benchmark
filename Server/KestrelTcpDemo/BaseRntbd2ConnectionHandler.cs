@@ -26,6 +26,9 @@ namespace KestrelTcpDemo
         private readonly Func<Stream, SslStream> _sslStreamFactory;
         private static ConcurrentDictionary<string, X509Certificate2> cachedCerts = new ConcurrentDictionary<string, X509Certificate2>();
 
+        private static readonly string BaseCertificateSubjectName = Environment.GetEnvironmentVariable("RuntimeSslCertificateSubjectName");
+        private static readonly string BaseCertificateThumbprint = Environment.GetEnvironmentVariable("RuntimeSslCertificateThumbprint");
+
         public BaseRntbd2ConnectionHandler()
         {
             _sslStreamFactory = s => new SslStream(s, leaveInnerStreamOpen: true, userCertificateValidationCallback: null);
@@ -53,16 +56,22 @@ namespace KestrelTcpDemo
 
         internal static X509Certificate2 GetServerCertificate(string serverName)
         {
-            X509Store store = new X509Store("MY", StoreLocation.CurrentUser);
+            X509Store store = new X509Store("MY", StoreLocation.LocalMachine);
             store.Open(OpenFlags.ReadOnly | OpenFlags.OpenExistingOnly);
 
-
+            string sslCertificateSubjectName = BaseCertificateSubjectName ?? serverName;
             foreach (X509Certificate2 x509 in store.Certificates)
             {
                 if (x509.HasPrivateKey)
                 {
+                    if (BaseCertificateThumbprint != null
+                        && string.Equals(x509.Thumbprint, BaseCertificateThumbprint, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return x509;
+                    }
+
                     // TODO: Covering for "CN="
-                    if (x509.SubjectName.Name.EndsWith(serverName))
+                    if (x509.SubjectName.Name.EndsWith(sslCertificateSubjectName))
                     {
                         return x509;
                     }
