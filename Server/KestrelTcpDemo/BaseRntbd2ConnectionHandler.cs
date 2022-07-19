@@ -125,17 +125,20 @@ namespace KestrelTcpDemo
                     $"{context.LocalEndPoint} -> {context.RemoteEndPoint}"))
                 {
                     // Complete Rntbd context negotiation 
-                    await cosmosDuplexPipe.NegotiateRntbdContextAsServer();
+                    await cosmosDuplexPipe.NegotiateRntbdContextAsServer(CancellationToken.None);
 
                     // Process RntbdMessages
-                    await ProcessRntbdFlowsAsync(context.ConnectionId, cosmosDuplexPipe, 
+                    await ProcessRntbdFlowsAsync(context.ConnectionId,
+                        context,
+                        cosmosDuplexPipe, 
                         $"{context.LocalEndPoint} -> {context.RemoteEndPoint}");
                 }
             }
         }
 
         public async Task ProcessRntbdFlowsAsync(
-            string connectionId, 
+            string connectionId,
+            ConnectionContext context,
             CosmosDuplexPipe cosmosDuplexPipe,
             string traceDiagnticsContext)
         {
@@ -146,14 +149,17 @@ namespace KestrelTcpDemo
             catch (ConnectionResetException ex)
             {
                 Trace.TraceInformation($"{traceDiagnticsContext} -> {ex.ToString()}");
+                context.Abort(new ConnectionAbortedException($"{ex.GetType().Name} -> {traceDiagnticsContext}", ex));
             }
             catch (InvalidOperationException ex) // Connection reset dring Read/Write
             {
                 Trace.TraceError($"{traceDiagnticsContext} -> {ex.ToString()}");
+                context.Abort(new ConnectionAbortedException($"{ex.GetType().Name} -> {traceDiagnticsContext}", ex));
             }
             catch (Exception ex) // Connection reset dring Read/Write
             {
                 Trace.TraceError($"{traceDiagnticsContext} -> {ex.ToString()}");
+                context.Abort(new ConnectionAbortedException($"{ex.GetType().Name} -> {traceDiagnticsContext}", ex));
             }
             finally
             {

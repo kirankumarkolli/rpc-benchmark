@@ -35,6 +35,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
                 string.Empty));
         
         private readonly Stream stream;
+        private readonly string traceDiagnticsContext;
 
         private int nextRequestId = 0;
 
@@ -53,6 +54,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
             this.Writer = new LimitedPipeWriter(PipeWriter.Create(ns, new StreamPipeWriterOptions(leaveOpen: true)));
 
             this.stream = ns;
+            this.traceDiagnticsContext = traceDiagnticsContext;
         }
 
         public LengthPrefixPipeReader Reader { get; }
@@ -61,10 +63,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
 
         public void Dispose()
         {
-            if (this.stream != null)
-            {
-                this.stream.Dispose();
-            }
+            this.stream?.Dispose();
         }
 
         private static async Task<IPAddress> ResolveHostAsync(string hostName)
@@ -204,7 +203,8 @@ using Microsoft.Azure.Cosmos.Core.Trace;
             }
         }
 
-        public static async Task<CosmosDuplexPipe> ConnectAsClientAsync(Uri endpoint)
+        public static async Task<CosmosDuplexPipe> ConnectAsClientAsync(Uri endpoint,
+            CancellationToken cancellationToken)
         {
             IPAddress resolvedAddress = await ResolveHostAsync(endpoint.DnsSafeHost);
             TcpClient tcpClient = new TcpClient(resolvedAddress.AddressFamily);
@@ -234,7 +234,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
                 checkCertificateRevocation: false);
 
             CosmosDuplexPipe duplexPipe = new CosmosDuplexPipe(sslStream, $"LOCAL:{Environment.MachineName} -> {endpoint}");
-            await duplexPipe.NegotiateRntbdContextAsClient();
+            await duplexPipe.NegotiateRntbdContextAsClient(cancellationToken);
 
             return duplexPipe;
         }
@@ -249,35 +249,46 @@ using Microsoft.Azure.Cosmos.Core.Trace;
             responseType.ParseFrom(ref bytesDeserializer);
         }
 
-        public async Task NegotiateRntbdContextAsClient()
+        public async Task NegotiateRntbdContextAsClient(CancellationToken cancellationToken)
         {
             await this.SendRntbdContext();
 
-            (UInt32 length, byte[] messageBytes) = await this.Reader.MoveNextAsync(isLengthCountedIn: true, CancellationToken.None);
+            (UInt32 length, byte[] messageBytes) = await this.Reader.MoveNextAsync(isLengthCountedIn: true, cancellationToken);
 
-            // TODO: Incoming context validation 
-            // sizeof(UInt32) -> Length-prefix
-            // sizeof(UInt32) -> Status code
-            // 16 <- Activity id (hard coded)
-            UInt32 connectionContextOffet = (UInt32)(sizeof(UInt32) + sizeof(UInt32) + BytesSerializer.GetSizeOfGuid());
+            try
+            {
+                // TODO: Incoming context validation 
+                // sizeof(UInt32) -> Length-prefix
+                // sizeof(UInt32) -> Status code
+                // 16 <- Activity id (hard coded)
+                UInt32 connectionContextOffet = (UInt32)(sizeof(UInt32) + sizeof(UInt32) + BytesSerializer.GetSizeOfGuid());
 
-            ConnectionContextResponse response = new ConnectionContextResponse();
-            Deserialize(messageBytes, connectionContextOffet, length - connectionContextOffet, response);
-
-            ArrayPool<byte>.Shared.Return(messageBytes);
+                ConnectionContextResponse response = new ConnectionContextResponse();
+                Deserialize(messageBytes, connectionContextOffet, length - connectionContextOffet, response);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(messageBytes);
+            }
         }
 
-        public async Task NegotiateRntbdContextAsServer()
+        public async Task NegotiateRntbdContextAsServer(CancellationToken cancellationToken)
         {
-            (UInt32 length, byte[] messageBytes) = await this.Reader.MoveNextAsync(isLengthCountedIn: true, CancellationToken.None);
+            (UInt32 length, byte[] messageBytes) = await this.Reader.MoveNextAsync(isLengthCountedIn: true, cancellationToken);
 
-            UInt32 connectionContextOffet = (UInt32)(sizeof(UInt32) + sizeof(UInt16) + sizeof(UInt16) + BytesSerializer.GetSizeOfGuid());
-            RntbdConstants.ConnectionContextRequest request = new RntbdConstants.ConnectionContextRequest();
-            Deserialize(messageBytes, connectionContextOffet, length - connectionContextOffet, request);
-            ArrayPool<byte>.Shared.Return(messageBytes);
+            try
+            {
+                UInt32 connectionContextOffet = (UInt32)(sizeof(UInt32) + sizeof(UInt16) + sizeof(UInt16) + BytesSerializer.GetSizeOfGuid());
+                RntbdConstants.ConnectionContextRequest request = new RntbdConstants.ConnectionContextRequest();
+                Deserialize(messageBytes, connectionContextOffet, length - connectionContextOffet, request);
 
-            // Send response 
-            await RntbdConstants.ConnectionContextResponse.Serialize(200, Guid.NewGuid(), this.Writer.PipeWriter);
+                // Send response 
+                await RntbdConstants.ConnectionContextResponse.Serialize(200, Guid.NewGuid(), this.Writer.PipeWriter, cancellationToken);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(messageBytes);
+            }
         }
 
         private ValueTask SendRntbdContext(
