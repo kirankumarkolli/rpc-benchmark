@@ -22,6 +22,12 @@
       <Link>Common\%(RecursiveDir)%(FileName)%(Extension)</Link>
     </Compile>
   </ItemGroup>
+  <ItemGroup>
+    <Compile Remove="InMemoryRntbd2ConnectionHandler.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="InMemoryRntbd2ConnectionHandler.cs" />
+  </ItemGroup>
   
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" VersionOverride="13.0.1" />

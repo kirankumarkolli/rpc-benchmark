@@ -6,11 +6,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using CosmosBenchmark;
-using Microsoft.Azure.Cosmos;
 using Microsoft.Azure.Cosmos.Common;
 using Microsoft.Azure.Cosmos.Rntbd;
-using Microsoft.Azure.Documents;
-using static Microsoft.Azure.Documents.RntbdConstants;
 
 namespace KestrelTcpDemo
 {
@@ -28,7 +25,9 @@ namespace KestrelTcpDemo
         {
         }
 
-        public override async Task ProcessRntbdFlowsAsyncCore(string connectionId, CosmosDuplexPipe cosmosDuplexPipe)
+        public override async Task ProcessRntbdFlowsAsyncCore(
+            string connectionId, 
+            CosmosDuplexPipe incominCosmosDuplexPipe)
         {
             // Each incoming connection will have its own out-bound connections
             // I.e. for an account its possible that #connections = <#incoming-connections>*<#replica-endpoints>
@@ -39,7 +38,7 @@ namespace KestrelTcpDemo
             {
                 await ProcessRntbdFlowsCoreInernalAsync(
                             connectionId, 
-                            cosmosDuplexPipe, 
+                            incominCosmosDuplexPipe, 
                             outboundConnections,
                             cancellationTokenSource.Token);
             }
@@ -53,34 +52,28 @@ namespace KestrelTcpDemo
 
         public async Task ProcessRntbdFlowsCoreInernalAsync(
             string connectionId, 
-            CosmosDuplexPipe cosmosDuplexPipe,
+            CosmosDuplexPipe incominCosmosDuplexPipe,
             AsyncCache<string, CosmosDuplexPipe> outboundConnections,
             CancellationToken cancellationToken)
         {
+            // TODO: (HCCK + Optimization) Fix hard coding 
+            byte[] tmpBytes = new byte[4 * 1024];
 
             while (true)
             {
-                (UInt32 messageLength, byte[] messagebytes) = await cosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true, cancellationToken);
-                try
-                {
-                    await this.ProcessRntbdMessageRewriteAsync(
-                                connectionId,
-                                cosmosDuplexPipe,
-                                outboundConnections,
-                                messageLength,
-                                messagebytes,
-                                cancellationToken);
-                }
-                finally
-                {
-                    ArrayPool<byte>.Shared.Return(messagebytes);
-                }
+                ReadOnlySequence<byte> messagebytesSequence = await incominCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true, cancellationToken);
+                await this.ProcessRntbdMessageRewriteAsync(
+                            connectionId,
+                            incominCosmosDuplexPipe,
+                            outboundConnections,
+                            messagebytesSequence,
+                            tmpBytes,
+                            cancellationToken);
             }
         }
 
         private async Task DisposeAllOutboundConnections(AsyncCache<string, CosmosDuplexPipe> outboundConnections)
         {
-
             try
             {
                 foreach (string entryKey in outboundConnections.Keys)
@@ -108,8 +101,8 @@ namespace KestrelTcpDemo
             string connectionId,
             CosmosDuplexPipe incomingCosmosDuplexPipe,
             AsyncCache<string, CosmosDuplexPipe> outboundConnections,
-            UInt32 messageLength,
-            byte[] messageBytes,
+            ReadOnlySequence<byte> messagebytesSequence,
+            byte[] tmpBytes,
             CancellationToken cancellationToken)
         {
             // roueTo(replicaPath)
@@ -118,11 +111,9 @@ namespace KestrelTcpDemo
             //  1. Replica path     - RequestIdentifiers.ReplicaPath
             //  2. isPayloadPresent - RequestIdentifiers.PayloadPresent
 
-            (bool hasPaylad, string replicaPath, int replicaPathLengthPosition, int replicaPathLength) = ReverseProxyRntbd2ConnectionHandler.ExtractContext(messageBytes, messageLength);
-            (string routingPathHint, string passThroughPath) = ReverseProxyRntbd2ConnectionHandler.SplitsParts(replicaPath);
+            (bool hasPaylad, SequencePosition replicaPathLengthPosition, int replicaPathLength) = ReverseProxyRntbd2ConnectionHandler.ExtractContext(messagebytesSequence, tmpBytes);
+            (string routingPathHint, ReadOnlyMemory<byte> passThroughReplicaPath) = ReverseProxyRntbd2ConnectionHandler.SplitsParts(tmpBytes.AsMemory(0, replicaPathLength));
             Uri routingTargetEndpoint = this.GetRouteToEndpoint(routingPathHint);
-
-            ReadOnlyMemory<byte> updatedReplicaPathMemory = GetBytesForString(passThroughPath);
 
             // Get the outbound cosmos duplex pipe
             CosmosDuplexPipe outboundDuplexPipe = await outboundConnections.GetAsync(routingTargetEndpoint.AbsoluteUri,
@@ -147,11 +138,10 @@ namespace KestrelTcpDemo
                 },
                 cancellationToken: default);
 
-            await ProcessRequestAndPayloadAsync(messageBytes,
-                        (int)messageLength,
+            await ProcessRequestAndPayloadAsync(messagebytesSequence,
                         replicaPathLengthPosition,
                         replicaPathLength,
-                        updatedReplicaPathMemory,
+                        passThroughReplicaPath,
                         incomingCosmosDuplexPipe,
                         outboundDuplexPipe,
                         hasPaylad,
@@ -166,47 +156,34 @@ namespace KestrelTcpDemo
             CosmosDuplexPipe outboundCosmosDuplexPipe,
             CancellationToken cancellationToken)
         {
-            while (! cancellationToken.IsCancellationRequested)
+            while (!cancellationToken.IsCancellationRequested)
             {
-                bool hasPayload = false;
-                (UInt32 responseMetadataLength, byte[] responseMetadataBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true, cancellationToken);
-                try
-                {
-                    hasPayload = ReverseProxyRntbd2ConnectionHandler.HasPayload(responseMetadataBytes, responseMetadataLength);
+                ReadOnlySequence<byte> metadataBytesSequence = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true, cancellationToken);
+                long totalResponseLength = metadataBytesSequence.Length;
 
-                    await incomingCosmosDuplexPipe.Writer.GetMemoryAndFlushAsync((int)responseMetadataLength,
-                        (memory) =>
-                        {
-                            responseMetadataBytes.CopyTo(memory);
-                        });
-                }
-                finally
-                {
-                    ArrayPool<byte>.Shared.Return(responseMetadataBytes);
-                }
-
+                bool hasPayload = ReverseProxyRntbd2ConnectionHandler.ResponeHasPayload(metadataBytesSequence);
+                ReadOnlySequence<byte> payloadBytesSequence = ReadOnlySequence<byte>.Empty;
                 if (hasPayload)
                 {
-                    (UInt32 responsePayloadLength, byte[] responsePayloadBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: false, cancellationToken);
-                    try
-                    {
-                        await incomingCosmosDuplexPipe.Writer.GetMemoryAndFlushAsync((int)responsePayloadLength,
-                            (memory) =>
-                            {
-                                responsePayloadBytes.CopyTo(memory);
-                            });
-                    }
-                    finally
-                    {
-                        ArrayPool<byte>.Shared.Return(responsePayloadBytes);
-                    }
+                    payloadBytesSequence = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: false, cancellationToken);
+                    totalResponseLength += payloadBytesSequence.Length;
                 }
+
+                await incomingCosmosDuplexPipe.Writer.GetMemoryAndFlushAsync((int)totalResponseLength,
+                    (memory) =>
+                    {
+                        metadataBytesSequence.CopyTo(memory.Span);
+                        if (hasPayload)
+                        {
+                            payloadBytesSequence.CopyTo(memory.Span.Slice((int)metadataBytesSequence.Length));
+                        }
+                    });
             }
         }
 
-        private static async Task ProcessRequestAndPayloadAsync(byte[] incomingMessageBytes,
-            int incomingMessageBytesLength,
-            int incomingReplicaPathLengthPosition,
+        private static async Task ProcessRequestAndPayloadAsync(
+            ReadOnlySequence<byte> messagebytesSequence,
+            SequencePosition incomingReplicaPathLengthPosition,
             int incomingReplicaPathLength,
             ReadOnlyMemory<byte> updatedReplicaPathMemory,
             CosmosDuplexPipe incomingCosmosDuplexPipe,
@@ -214,67 +191,49 @@ namespace KestrelTcpDemo
             bool hasPayload,
             CancellationToken cancellationToken)
         {
-            byte[] incomingPayloadBytes = null;
-            UInt32 incomingPayloadLength;
-            
-            try
-            {
-                int requiredMemoryLength = incomingMessageBytesLength - (incomingReplicaPathLength - updatedReplicaPathMemory.Length);
-                if (hasPayload)
-                {
-                    (incomingPayloadLength, incomingPayloadBytes) = await incomingCosmosDuplexPipe.Reader.MoveNextAsync(
-                                                                            isLengthCountedIn: false, 
-                                                                            cancellationToken: cancellationToken);
-                    requiredMemoryLength += (int)incomingPayloadLength;
-                }
+            ReadOnlySequence<byte> incomingPayloadBytes = ReadOnlySequence<byte>.Empty;
 
-                await outBoundDuplexPipe.Writer.GetMemoryAndFlushAsync(requiredMemoryLength,
-                    (memory) =>
+            int requiredMemoryLength = (int)messagebytesSequence.Length - (incomingReplicaPathLength - updatedReplicaPathMemory.Length);
+            if (hasPayload)
+            {
+                incomingPayloadBytes = await incomingCosmosDuplexPipe.Reader.MoveNextAsync(
+                                                                        isLengthCountedIn: false,
+                                                                        cancellationToken: cancellationToken);
+                requiredMemoryLength += (int)incomingPayloadBytes.Length;
+            }
+
+            await outBoundDuplexPipe.Writer.GetMemoryAndFlushAsync(requiredMemoryLength,
+                (memory) =>
+                {
+                    ReadOnlySequence<byte> preReplicaPathBytes = messagebytesSequence.Slice(sizeof(UInt32), incomingReplicaPathLengthPosition);
+                    ReadOnlySequence<byte> postReplicaPathBytes = messagebytesSequence.Slice(incomingReplicaPathLengthPosition).Slice(sizeof(UInt16) + incomingReplicaPathLength);
+
+                    BytesSerializer writer = new BytesSerializer(memory.Span);
+                    writer.Write(requiredMemoryLength); // Length 
+                    writer.Write(preReplicaPathBytes); // preReplicaPathBytes - Includes replicapath (identifier, type)
+                    writer.Write((UInt16)updatedReplicaPathMemory.Length);
+                    writer.Write(updatedReplicaPathMemory);
+                    writer.Write(postReplicaPathBytes);
+
+                    if (hasPayload)
                     {
-                        BytesSerializer writer = new BytesSerializer(memory.Span);
-                        writer.Write(requiredMemoryLength); // Length 
-
-                        Span<byte> preReplicaPathBytes = incomingMessageBytes.AsSpan(sizeof(UInt32), incomingReplicaPathLengthPosition - sizeof(UInt32));
-                        writer.Write(preReplicaPathBytes); // preReplicaPathBytes - Includes replicapath (identifier, type)
-
-                        writer.Write((UInt16)updatedReplicaPathMemory.Length);
-                        writer.Write(updatedReplicaPathMemory);
-
-                        int postReplicaPathPosition = incomingReplicaPathLengthPosition + sizeof(UInt16) + incomingReplicaPathLength;
-                        Span<byte> postReplicaPathBytes = incomingMessageBytes.AsSpan(postReplicaPathPosition, incomingMessageBytesLength - postReplicaPathPosition);
-                        writer.Write(postReplicaPathBytes); // postReplicaPathBytes
-                        if (hasPayload)
-                        {
-                            incomingPayloadBytes.CopyTo(memory);
-                        }
-                    });
-            }
-            finally
-            {
-                if (hasPayload
-                    && incomingPayloadBytes != null)
-                {
-                    ArrayPool<byte>.Shared.Return(incomingPayloadBytes);
-                }
-            }
+                        writer.Write(incomingPayloadBytes);
+                    }
+                });
         }
 
-        public static bool HasPayload(
-                byte[] messageBytes,
-                UInt32 messageLength)
+        public static bool ResponeHasPayload(ReadOnlySequence<byte> messagebytesSequence)
         {
-            RntbdRequestTokensIterator iterator = new RntbdRequestTokensIterator(messageBytes,
-                0,
-                (int)messageLength);
-            return iterator.HasPayload();
+            RntbdRequestTokensIterator iterator = new RntbdRequestTokensIterator(messagebytesSequence);
+            return iterator.ResponeHasPayload();
         }
 
-        public static (bool hasPayload, string replicaPath, int replicaPathLengthPosition, int replicaPathUtf8Length) ExtractContext(
-                byte[] messageBytes, 
-                UInt32 messageLength)
+        public static (bool, SequencePosition, int ) ExtractContext(
+                ReadOnlySequence<byte> messagebytesSequence,
+                byte[] tempBytes)
         {
-            RntbdRequestTokensIterator iterator = new RntbdRequestTokensIterator(messageBytes, 0, (int)messageLength);
-            return iterator.ExtractContext();
+            RntbdRequestTokensIterator iterator = new RntbdRequestTokensIterator(messagebytesSequence);
+            return iterator.ExtractContext(tempBytes);
         }
 
         private static ReadOnlyMemory<byte> GetBytesForString(string toConvert)
@@ -289,24 +248,47 @@ namespace KestrelTcpDemo
             return new Uri("rntbd://" + routingPath);
         }
 
-        private static (string routingPath, string passThroughPath) SplitsParts(string replicaPath)
+        private static (string routingPath, ReadOnlyMemory<byte> passThroughPathBytes) SplitsParts(ReadOnlyMemory<byte> replicaPathBytes)
         {
+            ReadOnlySpan<byte> replicaPathBytesSpan = replicaPathBytes.Span;
             int startIndex = 0;
-            if (replicaPath[0] == '/')
+            if (replicaPathBytesSpan[0] == '/')
             {
                 startIndex = 1;
             }
 
-            int index = startIndex + 1;
-            while(replicaPath[index] != '/')
+            int index = startIndex;
+            for (; index < replicaPathBytesSpan.Length; index++)
             {
-                index ++;
+                if(replicaPathBytesSpan[index] == '/')
+                {
+                    break;
+                }
             }
 
+            if (index == replicaPathBytesSpan.Length)
+            {
+                throw new ArgumentOutOfRangeException($"Routing path separator not found");
+            }
+
+            string routingPath = GetStringFromBytes(replicaPathBytesSpan.Slice(startIndex, index - startIndex));
             return (
-                    replicaPath.Substring(startIndex, index - startIndex),
-                    replicaPath.Substring(index) // Include separator
+                    routingPath,
+                    replicaPathBytes.Slice(index) // Include separator
                     );
+        }
+
+        private static unsafe string GetStringFromBytes(ReadOnlySpan<byte> memory)
+        {
+            if (memory.IsEmpty)
+            {
+                return string.Empty;
+            }
+
+            fixed (byte* bytes = &memory.GetPinnableReference())
+            {
+                return Encoding.UTF8.GetString(bytes, memory.Length);
+            }
         }
     }
 }

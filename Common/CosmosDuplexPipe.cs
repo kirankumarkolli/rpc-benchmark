@@ -23,9 +23,10 @@ namespace CosmosBenchmark
     using static Microsoft.Azure.Documents.RntbdConstants;
     using System.Buffers;
     using System.Globalization;
-using Microsoft.Azure.Cosmos;
+    using Microsoft.Azure.Cosmos;
     using System.Collections.Concurrent;
-using Microsoft.Azure.Cosmos.Core.Trace;
+    using Microsoft.Azure.Cosmos.Core.Trace;
+    using KestrelTcpDemo;
 
     internal partial class CosmosDuplexPipe : IDisposable
     {
@@ -86,30 +87,24 @@ using Microsoft.Azure.Cosmos.Core.Trace;
         {
             await this.SendReadRequestAsync(replicaPath, databaseName, contaienrName, itemName, partitionKey);
 
-            (UInt32 messageLength, byte[] messageBytes) = await this.Reader.MoveNextAsync(isLengthCountedIn: true, CancellationToken.None);
+            ReadOnlySequence<byte> messageBytesSequence = await this.Reader.MoveNextAsync(isLengthCountedIn: true, CancellationToken.None);
 
             // TODO: Incoming context validation 
             // sizeof(UInt32) -> Length-prefix
             // sizeof(UInt32) -> Status code
             // 16 <- Activity id (hard coded)
             UInt32 connectionContextOffet = (UInt32)(sizeof(UInt32) + sizeof(UInt32) + BytesSerializer.GetSizeOfGuid());
-            UInt32 statusCode = BitConverter.ToUInt32(messageBytes, sizeof(UInt32));
+            UInt32 statusCode = RntbdRequestTokensIterator.ToUInt32(messageBytesSequence.Slice(sizeof(UInt32)));
             if (statusCode > 399 && statusCode != 404 && statusCode != 429)
             {
                 throw new Exception($"Non success status code: {statusCode}");
             }
 
-            RntbdConstants.Response response = new();
-            Deserialize(messageBytes, connectionContextOffet, messageLength - connectionContextOffet, response);
-
-            if (response.payloadPresent.isPresent && response.payloadPresent.value.valueByte != 0x00)
+            if (ResponeHasPayload(messageBytesSequence))
             {
                 // Payload is present 
-                (messageLength, byte[] payloadBytes) = await this.Reader.MoveNextAsync(isLengthCountedIn: false, CancellationToken.None);
-                ArrayPool<byte>.Shared.Return(payloadBytes);
+                ReadOnlySequence<byte> payloadBytesSequence = await this.Reader.MoveNextAsync(isLengthCountedIn: false, CancellationToken.None);
             }
-
-            ArrayPool<byte>.Shared.Return(messageBytes);
         }
 
         public ValueTask SendReadRequestAsync(
@@ -239,56 +234,43 @@ using Microsoft.Azure.Cosmos.Core.Trace;
             return duplexPipe;
         }
 
-        private static void Deserialize<T>(
-            byte[] deserializePayload,
-            UInt32 startPosition,
-            UInt32 length,
-            RntbdTokenStream<T> responseType) where T : Enum
+        public static bool ResponeHasPayload(ReadOnlySequence<byte> messagebytesSequence)
         {
-            BytesDeserializer bytesDeserializer = new BytesDeserializer(deserializePayload, (int)startPosition, (int)length);
-            responseType.ParseFrom(ref bytesDeserializer);
+            RntbdRequestTokensIterator iterator = new RntbdRequestTokensIterator(messagebytesSequence);
+            return iterator.ResponeHasPayload();
         }
 
         public async Task NegotiateRntbdContextAsClient(CancellationToken cancellationToken)
         {
             await this.SendRntbdContext();
 
-            (UInt32 length, byte[] messageBytes) = await this.Reader.MoveNextAsync(isLengthCountedIn: true, cancellationToken);
+            ReadOnlySequence<byte> messageBytesSequence = await this.Reader.MoveNextAsync(isLengthCountedIn: true, cancellationToken);
 
-            try
+            // TODO: Incoming response validation 
+            // sizeof(UInt32) -> Length-prefix
+            // sizeof(UInt32) -> Status code
+            // 16 <- Activity id (hard coded)
+            UInt32 connectionContextOffet = (UInt32)(sizeof(UInt32) + sizeof(UInt32) + BytesSerializer.GetSizeOfGuid());
+            UInt32 statusCode = RntbdRequestTokensIterator.ToUInt32(messageBytesSequence.Slice(sizeof(UInt32)));
+            if(statusCode != 200)
             {
-                // TODO: Incoming context validation 
-                // sizeof(UInt32) -> Length-prefix
-                // sizeof(UInt32) -> Status code
-                // 16 <- Activity id (hard coded)
-                UInt32 connectionContextOffet = (UInt32)(sizeof(UInt32) + sizeof(UInt32) + BytesSerializer.GetSizeOfGuid());
-
-                ConnectionContextResponse response = new ConnectionContextResponse();
-                Deserialize(messageBytes, connectionContextOffet, length - connectionContextOffet, response);
+                throw new Exception($"Rntbd context negotiation failed with: {statusCode}");
             }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(messageBytes);
-            }
+            //ConnectionContextResponse response = new ConnectionContextResponse();
+            // Deserialize(messageBytes, connectionContextOffet, length - connectionContextOffet, response);
         }
 
         public async Task NegotiateRntbdContextAsServer(CancellationToken cancellationToken)
         {
-            (UInt32 length, byte[] messageBytes) = await this.Reader.MoveNextAsync(isLengthCountedIn: true, cancellationToken);
+            ReadOnlySequence<byte> messageBytesSequence = await this.Reader.MoveNextAsync(isLengthCountedIn: true, cancellationToken);
 
-            try
-            {
-                UInt32 connectionContextOffet = (UInt32)(sizeof(UInt32) + sizeof(UInt16) + sizeof(UInt16) + BytesSerializer.GetSizeOfGuid());
-                RntbdConstants.ConnectionContextRequest request = new RntbdConstants.ConnectionContextRequest();
-                Deserialize(messageBytes, connectionContextOffet, length - connectionContextOffet, request);
+            // TODO: Context validation 
+            //UInt32 connectionContextOffet = (UInt32)(sizeof(UInt32) + sizeof(UInt16) + sizeof(UInt16) + BytesSerializer.GetSizeOfGuid());
+            //RntbdConstants.ConnectionContextRequest request = new RntbdConstants.ConnectionContextRequest();
+            // Deserialize(messageBytes, connectionContextOffet, length - connectionContextOffet, request);
 
-                // Send response 
-                await RntbdConstants.ConnectionContextResponse.Serialize(200, Guid.NewGuid(), this.Writer.PipeWriter, cancellationToken);
-            }
-            finally
-            {
-                ArrayPool<byte>.Shared.Return(messageBytes);
-            }
+            // Send response 
+            await RntbdConstants.ConnectionContextResponse.Serialize(200, Guid.NewGuid(), this.Writer.PipeWriter, cancellationToken);
         }
 
         private ValueTask SendRntbdContext(

@@ -32,10 +32,19 @@ namespace CosmosBenchmark
         ///     isLengthCountedIn (true) : It matches 
         ///     isLengthCountedIn (false): Differs by sizeof(UINT32) more
         /// </summary>
-        public async Task<(UInt32, byte[])> MoveNextAsync(
+        public async Task<ReadOnlySequence<byte>> MoveNextAsync(
                 bool isLengthCountedIn,
                 CancellationToken cancellationToken)
         {
+            // Previous message consumed advance the Reader
+            if (this.readResult.HasValue 
+                && this.consumedBytesLength != 0)
+            {
+                this.pipeReader.AdvanceTo(
+                        this.readResult.Value.Buffer.GetPosition(this.consumedBytesLength),
+                        this.readResult.Value.Buffer.End);
+            }
+
             UInt32 nextMessageLength = 0;
             if (readResult.HasValue
                 && this.consumedBytesLength + sizeof(UInt32) <= readResult.Value.Buffer.Length)
@@ -67,22 +76,15 @@ namespace CosmosBenchmark
             return ExtractMessage(nextMessageLength);
         }
 
-        private (uint, byte[]) ExtractMessage(uint nextMessageLength)
+        private ReadOnlySequence<byte> ExtractMessage(uint nextMessageLength)
         {
             ReadOnlySequence<byte> fullMessageSequence = this.readResult.Value.Buffer.Slice(this.consumedBytesLength, nextMessageLength);
 
-            byte[] currentMessageBytes = ArrayPool<byte>.Shared.Rent((int)nextMessageLength);
-            fullMessageSequence.CopyTo(currentMessageBytes);
-
+            // Update consumed (as message sequence is prepared)
+            // Real reader.AdvanceTo will be done on next MoveNext()
             this.consumedBytesLength += nextMessageLength;
 
-            // Advance reader for current message
-            ReadOnlySequence<byte> readOnlyBytes = this.readResult.Value.Buffer;
-            this.pipeReader.AdvanceTo(
-                    readOnlyBytes.GetPosition(this.consumedBytesLength),
-                    readOnlyBytes.End); 
-
-            return (nextMessageLength, currentMessageBytes);
+            return fullMessageSequence;
         }
 
         private static UInt32 ToUInt32(ReadOnlySequence<byte> lengthBytesSequence)
