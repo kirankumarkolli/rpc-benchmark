@@ -166,37 +166,38 @@ namespace KestrelTcpDemo
             CosmosDuplexPipe outboundCosmosDuplexPipe,
             CancellationToken cancellationToken)
         {
-            while (! cancellationToken.IsCancellationRequested)
+            while (!cancellationToken.IsCancellationRequested)
             {
                 bool hasPayload = false;
+                UInt32 responsePayloadLength = 0;
+                byte[] responsePayloadBytes = null;
                 (UInt32 responseMetadataLength, byte[] responseMetadataBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true, cancellationToken);
                 try
                 {
                     hasPayload = ReverseProxyRntbd2ConnectionHandler.HasPayload(responseMetadataBytes, responseMetadataLength);
 
-                    await incomingCosmosDuplexPipe.Writer.GetMemoryAndFlushAsync((int)responseMetadataLength,
+                    if (hasPayload)
+                    {
+                        (responsePayloadLength, responsePayloadBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: false, cancellationToken);
+                    }
+
+                    int totalRequestedMemory = (int)responseMetadataLength + (int)responsePayloadLength;
+
+                    await incomingCosmosDuplexPipe.Writer.GetMemoryAndFlushAsync(totalRequestedMemory,
                         (memory) =>
                         {
                             responseMetadataBytes.CopyTo(memory);
+                            if (hasPayload)
+                            {
+                                responsePayloadBytes.CopyTo(memory.Slice((int)responseMetadataLength));
+                            }
                         });
                 }
                 finally
                 {
                     ArrayPool<byte>.Shared.Return(responseMetadataBytes);
-                }
-
-                if (hasPayload)
-                {
-                    (UInt32 responsePayloadLength, byte[] responsePayloadBytes) = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: false, cancellationToken);
-                    try
-                    {
-                        await incomingCosmosDuplexPipe.Writer.GetMemoryAndFlushAsync((int)responsePayloadLength,
-                            (memory) =>
-                            {
-                                responsePayloadBytes.CopyTo(memory);
-                            });
-                    }
-                    finally
+                    if (hasPayload
+                        && responsePayloadBytes != null)
                     {
                         ArrayPool<byte>.Shared.Return(responsePayloadBytes);
                     }
