@@ -56,7 +56,7 @@ namespace KestrelTcpDemo
             AsyncCache<string, CosmosDuplexPipe> outboundConnections,
             CancellationToken cancellationToken)
         {
-            // TODO: Fix hard coding 
+            // TODO: (HCCK + Optimization) Fix hard coding 
             byte[] tmpBytes = new byte[4 * 1024];
 
             while (true)
@@ -156,26 +156,28 @@ namespace KestrelTcpDemo
             CosmosDuplexPipe outboundCosmosDuplexPipe,
             CancellationToken cancellationToken)
         {
-            while (! cancellationToken.IsCancellationRequested)
+            while (!cancellationToken.IsCancellationRequested)
             {
-                ReadOnlySequence<byte> messagebytesSequence = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true, cancellationToken);
+                ReadOnlySequence<byte> metadataBytesSequence = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true, cancellationToken);
+                long totalResponseLength = metadataBytesSequence.Length;
 
-                bool hasPayload = ReverseProxyRntbd2ConnectionHandler.ResponeHasPayload(messagebytesSequence);
-                await incomingCosmosDuplexPipe.Writer.GetMemoryAndFlushAsync((int)messagebytesSequence.Length,
-                    (memory) =>
-                    {
-                        messagebytesSequence.CopyTo(memory.Span);
-                    });
-
+                bool hasPayload = ReverseProxyRntbd2ConnectionHandler.ResponeHasPayload(metadataBytesSequence);
+                ReadOnlySequence<byte> payloadBytesSequence = ReadOnlySequence<byte>.Empty;
                 if (hasPayload)
                 {
-                    ReadOnlySequence<byte> responsePayloadBytesSequence = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: false, cancellationToken);
-                    await incomingCosmosDuplexPipe.Writer.GetMemoryAndFlushAsync((int)responsePayloadBytesSequence.Length,
-                        (memory) =>
-                        {
-                            responsePayloadBytesSequence.CopyTo(memory.Span);
-                        });
+                    payloadBytesSequence = await outboundCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: false, cancellationToken);
+                    totalResponseLength += payloadBytesSequence.Length;
                 }
+
+                await incomingCosmosDuplexPipe.Writer.GetMemoryAndFlushAsync((int)totalResponseLength,
+                    (memory) =>
+                    {
+                        metadataBytesSequence.CopyTo(memory.Span);
+                        if (hasPayload)
+                        {
+                            payloadBytesSequence.CopyTo(memory.Span.Slice((int)metadataBytesSequence.Length));
+                        }
+                    });
             }
         }
 
