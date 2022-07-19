@@ -36,6 +36,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
                 string.Empty));
         
         private readonly Stream stream;
+        private readonly string traceDiagnticsContext;
 
         private int nextRequestId = 0;
 
@@ -45,13 +46,16 @@ using Microsoft.Azure.Cosmos.Core.Trace;
         private static readonly Lazy<ConcurrentPrng> rng =
             new Lazy<ConcurrentPrng>(LazyThreadSafetyMode.ExecutionAndPublication);
 
-        public CosmosDuplexPipe(Stream ns)
+        public CosmosDuplexPipe(
+            Stream ns,
+            string traceDiagnticsContext)
         {
             PipeReader pipeReader = PipeReader.Create(ns, new StreamPipeReaderOptions(leaveOpen: true));
-            this.Reader = new LengthPrefixPipeReader(pipeReader);
+            this.Reader = new LengthPrefixPipeReader(pipeReader, traceDiagnticsContext);
             this.Writer = new LimitedPipeWriter(PipeWriter.Create(ns, new StreamPipeWriterOptions(leaveOpen: true)));
 
             this.stream = ns;
+            this.traceDiagnticsContext = traceDiagnticsContext;
         }
 
         public LengthPrefixPipeReader Reader { get; }
@@ -60,10 +64,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
 
         public void Dispose()
         {
-            if (this.stream != null)
-            {
-                this.stream.Dispose();
-            }
+            this.stream?.Dispose();
         }
 
         private static async Task<IPAddress> ResolveHostAsync(string hostName)
@@ -197,7 +198,8 @@ using Microsoft.Azure.Cosmos.Core.Trace;
             }
         }
 
-        public static async Task<CosmosDuplexPipe> ConnectAsClientAsync(Uri endpoint)
+        public static async Task<CosmosDuplexPipe> ConnectAsClientAsync(Uri endpoint,
+            CancellationToken cancellationToken)
         {
             IPAddress resolvedAddress = await ResolveHostAsync(endpoint.DnsSafeHost);
             TcpClient tcpClient = new TcpClient(resolvedAddress.AddressFamily);
@@ -226,8 +228,8 @@ using Microsoft.Azure.Cosmos.Core.Trace;
                 enabledSslProtocols: SslProtocols.Tls12, 
                 checkCertificateRevocation: false);
 
-            CosmosDuplexPipe duplexPipe = new CosmosDuplexPipe(sslStream);
-            await duplexPipe.NegotiateRntbdContextAsClient();
+            CosmosDuplexPipe duplexPipe = new CosmosDuplexPipe(sslStream, $"LOCAL:{Environment.MachineName} -> {endpoint}");
+            await duplexPipe.NegotiateRntbdContextAsClient(cancellationToken);
 
             return duplexPipe;
         }
@@ -238,7 +240,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
             return iterator.ResponeHasPayload();
         }
 
-        public async Task NegotiateRntbdContextAsClient()
+        public async Task NegotiateRntbdContextAsClient(CancellationToken cancellationToken)
         {
             await this.SendRntbdContext();
 
@@ -258,7 +260,7 @@ using Microsoft.Azure.Cosmos.Core.Trace;
             // Deserialize(messageBytes, connectionContextOffet, length - connectionContextOffet, response);
         }
 
-        public async Task NegotiateRntbdContextAsServer()
+        public async Task NegotiateRntbdContextAsServer(CancellationToken cancellationToken)
         {
             ReadOnlySequence<byte> messageBytesSequence = await this.Reader.MoveNextAsync(isLengthCountedIn: true, CancellationToken.None);
 
@@ -267,8 +269,13 @@ using Microsoft.Azure.Cosmos.Core.Trace;
             //RntbdConstants.ConnectionContextRequest request = new RntbdConstants.ConnectionContextRequest();
             // Deserialize(messageBytes, connectionContextOffet, length - connectionContextOffet, request);
 
-            // Send response 
-            await RntbdConstants.ConnectionContextResponse.Serialize(200, Guid.NewGuid(), this.Writer.PipeWriter);
+                // Send response 
+                await RntbdConstants.ConnectionContextResponse.Serialize(200, Guid.NewGuid(), this.Writer.PipeWriter, cancellationToken);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(messageBytes);
+            }
         }
 
         private ValueTask SendRntbdContext(

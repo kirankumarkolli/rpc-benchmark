@@ -120,7 +120,9 @@ namespace KestrelTcpDemo
                 null,
                 async () =>
                 {
-                    var outboundCosmosDuplexPipe = await CosmosDuplexPipe.ConnectAsClientAsync(routingTargetEndpoint);
+                    var outboundCosmosDuplexPipe = await CosmosDuplexPipe.ConnectAsClientAsync(
+                                                        routingTargetEndpoint, 
+                                                        cancellationToken);
 
                     // Start the receiveloop (async task)
                     Task backgroundTask = ProcessResponseAndPayloadAsync(

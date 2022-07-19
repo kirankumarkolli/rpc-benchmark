@@ -26,12 +26,16 @@ namespace KestrelTcpDemo
         private readonly Func<Stream, SslStream> _sslStreamFactory;
         private static ConcurrentDictionary<string, X509Certificate2> cachedCerts = new ConcurrentDictionary<string, X509Certificate2>();
 
+        private static readonly string BaseCertificateSubjectName = Environment.GetEnvironmentVariable("RuntimeSslCertificateSubjectName");
+        private static readonly string BaseCertificateThumbprint = Environment.GetEnvironmentVariable("RuntimeSslCertificateThumbprint");
+
         public BaseRntbd2ConnectionHandler()
         {
             _sslStreamFactory = s => new SslStream(s, leaveInnerStreamOpen: true, userCertificateValidationCallback: null);
         }
 
-        private SslDuplexPipe CreateSslDuplexPipe(IDuplexPipe transport, MemoryPool<byte> memoryPool)
+        private SslDuplexPipe CreateSslDuplexPipe(IDuplexPipe transport, 
+            MemoryPool<byte> memoryPool)
         {
             StreamPipeReaderOptions inputPipeOptions = new StreamPipeReaderOptions
             (
@@ -53,16 +57,22 @@ namespace KestrelTcpDemo
 
         internal static X509Certificate2 GetServerCertificate(string serverName)
         {
-            X509Store store = new X509Store("MY", StoreLocation.CurrentUser);
+            X509Store store = new X509Store("MY", StoreLocation.LocalMachine);
             store.Open(OpenFlags.ReadOnly | OpenFlags.OpenExistingOnly);
 
-
+            string sslCertificateSubjectName = BaseCertificateSubjectName ?? serverName;
             foreach (X509Certificate2 x509 in store.Certificates)
             {
                 if (x509.HasPrivateKey)
                 {
+                    if (BaseCertificateThumbprint != null
+                        && string.Equals(x509.Thumbprint, BaseCertificateThumbprint, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return x509;
+                    }
+
                     // TODO: Covering for "CN="
-                    if (x509.SubjectName.Name.EndsWith(serverName))
+                    if (x509.SubjectName.Name.EndsWith(sslCertificateSubjectName))
                     {
                         return x509;
                     }
@@ -72,7 +82,9 @@ namespace KestrelTcpDemo
             throw new Exception("GetServerCertificate didn't find any");
         }
 
-        private async Task DoOptionsBasedHandshakeAsync(ConnectionContext context, SslStream sslStream, CancellationToken cancellationToken)
+        private async Task DoOptionsBasedHandshakeAsync(ConnectionContext context, 
+            SslStream sslStream, 
+            CancellationToken cancellationToken)
         {
             //var serverCert = GetServerCertificate("backend-fake");
             var sslOptions = new SslServerAuthenticationOptions
@@ -109,18 +121,26 @@ namespace KestrelTcpDemo
 
                 // Server SSL auth
                 await DoOptionsBasedHandshakeAsync(context, sslStream, CancellationToken.None);
-                using (CosmosDuplexPipe cosmosDuplexPipe = new CosmosDuplexPipe(sslStream))
+                using (CosmosDuplexPipe cosmosDuplexPipe = new CosmosDuplexPipe(sslStream,
+                    $"{context.LocalEndPoint} -> {context.RemoteEndPoint}"))
                 {
                     // Complete Rntbd context negotiation 
-                    await cosmosDuplexPipe.NegotiateRntbdContextAsServer();
+                    await cosmosDuplexPipe.NegotiateRntbdContextAsServer(CancellationToken.None);
 
                     // Process RntbdMessages
-                    await ProcessRntbdFlowsAsync(context.ConnectionId, cosmosDuplexPipe);
+                    await ProcessRntbdFlowsAsync(context.ConnectionId,
+                        context,
+                        cosmosDuplexPipe, 
+                        $"{context.LocalEndPoint} -> {context.RemoteEndPoint}");
                 }
             }
         }
 
-        public async Task ProcessRntbdFlowsAsync(string connectionId, CosmosDuplexPipe cosmosDuplexPipe)
+        public async Task ProcessRntbdFlowsAsync(
+            string connectionId,
+            ConnectionContext context,
+            CosmosDuplexPipe cosmosDuplexPipe,
+            string traceDiagnticsContext)
         {
             try
             {
@@ -128,17 +148,24 @@ namespace KestrelTcpDemo
             }
             catch (ConnectionResetException ex)
             {
-                Trace.TraceInformation(ex.ToString());
+                Trace.TraceInformation($"{traceDiagnticsContext} -> {ex.ToString()}");
+                context.Abort(new ConnectionAbortedException($"{ex.GetType().Name} -> {traceDiagnticsContext}", ex));
             }
             catch (InvalidOperationException ex) // Connection reset dring Read/Write
             {
-                Trace.TraceError(ex.ToString());
+                Trace.TraceError($"{traceDiagnticsContext} -> {ex.ToString()}");
+                context.Abort(new ConnectionAbortedException($"{ex.GetType().Name} -> {traceDiagnticsContext}", ex));
+            }
+            catch (Exception ex) // Connection reset dring Read/Write
+            {
+                Trace.TraceError($"{traceDiagnticsContext} -> {ex.ToString()}");
+                context.Abort(new ConnectionAbortedException($"{ex.GetType().Name} -> {traceDiagnticsContext}", ex));
             }
             finally
             {
-                Trace.TraceWarning($"Connection {connectionId} completed");
+                Trace.TraceInformation($"CLOSED: {traceDiagnticsContext}");
 
-                // ConnectionContext.DisposeAsync() should take care of below
+                //ConnectionContext.DisposeAsync() should take care of below
                 //await connection.Transport.Input.CompleteAsync();
                 //await connection.Transport.Output.CompleteAsync();
             }
