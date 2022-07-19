@@ -14,13 +14,17 @@ namespace CosmosBenchmark
     internal class LengthPrefixPipeReader
     {
         private readonly PipeReader pipeReader;
+        private readonly string diagnticsContext;
 
         private UInt32 consumedBytesLength = 0;
         private ReadResult? readResult = null;
 
-        public LengthPrefixPipeReader(PipeReader pipeReader)
+        public LengthPrefixPipeReader(
+            PipeReader pipeReader,
+            string traceDiagnticsContext)
         {
             this.pipeReader = pipeReader;
+            this.diagnticsContext = traceDiagnticsContext;
         }
 
         /// <summary>
@@ -58,6 +62,7 @@ namespace CosmosBenchmark
             (nextMessageLength, this.readResult) = await ReadLengthPrefixedMessageFullToConsume(
                                                                 this.pipeReader, 
                                                                 isLengthCountedIn,
+                                                                this.diagnticsContext,
                                                                 cancellationToken);
             return ExtractMessage(nextMessageLength);
         }
@@ -105,6 +110,7 @@ namespace CosmosBenchmark
         private static async ValueTask<(UInt32, ReadResult)> ReadLengthPrefixedMessageFullToConsume(
             PipeReader pipeReader,
             bool isLengthCountedIn,
+            string diagnticsContext,
             CancellationToken cancellationToken)
         {
             UInt32 length = 0;
@@ -131,10 +137,15 @@ namespace CosmosBenchmark
                 Debug.Assert(readResult.Buffer.Length >= length);
             }
 
+            if (readResult.IsCanceled || readResult.IsCompleted)
+            {
+                throw new Exception($"{nameof(ReadLengthPrefixedMessageFullToConsume)} failed, Context:{diagnticsContext} ReadResult IsCompleted:{readResult.IsCompleted} IsCancelled:{readResult.IsCanceled} cancellationToken: {cancellationToken.IsCancellationRequested}  ");
+            }
+
             if (length == 0 || readResult.Buffer.Length < length)
             {
                 // TODO: clean-up (for POC its fine)
-                throw new Exception($"{nameof(ReadLengthPrefixedMessageFullToConsume)} failed length: {length}, readResult.Buffer.Length: {readResult.Buffer.Length}");
+                throw new Exception($"{nameof(ReadLengthPrefixedMessageFullToConsume)} failed, Context:{diagnticsContext} length: {length}, readResult.Buffer.Length: {readResult.Buffer.Length}");
             }
 
             return (length, readResult);
