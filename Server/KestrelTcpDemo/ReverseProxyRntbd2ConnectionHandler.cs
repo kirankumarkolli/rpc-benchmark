@@ -111,7 +111,7 @@ namespace KestrelTcpDemo
             //  1. Replica path     - RequestIdentifiers.ReplicaPath
             //  2. isPayloadPresent - RequestIdentifiers.PayloadPresent
 
-            (bool hasPaylad, SequencePosition replicaPathLengthPosition, int replicaPathLength) = ReverseProxyRntbd2ConnectionHandler.StreamProcessMessageSequence(messagebytesSequence, tmpBytes);
+            (bool hasPaylad, SequencePosition replicaPathLengthPosition, int replicaPathLength) = ReverseProxyRntbd2ConnectionHandler.ExtractContext(messagebytesSequence, tmpBytes);
             (string routingPathHint, ReadOnlyMemory<byte> passThroughReplicaPath) = ReverseProxyRntbd2ConnectionHandler.SplitsParts(tmpBytes.AsMemory(0, replicaPathLength));
             Uri routingTargetEndpoint = this.GetRouteToEndpoint(routingPathHint);
 
@@ -224,7 +224,7 @@ namespace KestrelTcpDemo
             return iterator.ResponeHasPayload();
         }
 
-        public static (bool, SequencePosition, int ) StreamProcessMessageSequence(
+        public static (bool, SequencePosition, int ) ExtractContext(
                 ReadOnlySequence<byte> messagebytesSequence,
                 byte[] tempBytes)
         {
