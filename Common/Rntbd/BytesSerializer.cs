@@ -4,7 +4,8 @@
 
 namespace Microsoft.Azure.Cosmos.Rntbd
 {
-    using System;
+using System;
+    using System.Buffers;
     using System.IO;
     using System.Runtime.CompilerServices;
     using System.Runtime.InteropServices;
@@ -17,18 +18,12 @@ namespace Microsoft.Azure.Cosmos.Rntbd
     /// </summary>
     internal ref struct BytesSerializer
     {
-        private readonly Span<byte> targetByteArray;
+        private readonly Span<byte> targetByte;
         private int position;
-
-        public BytesSerializer(byte[] targetByteArray, int length)
-        {
-            this.targetByteArray = new Span<byte>(targetByteArray, 0, length);
-            this.position = 0;
-        }
 
         public BytesSerializer(Span<byte> targetByteArray)
         {
-            this.targetByteArray = targetByteArray;
+            this.targetByte = targetByteArray;
             this.position = 0;
         }
 
@@ -132,15 +127,23 @@ namespace Microsoft.Azure.Cosmos.Rntbd
 
         public void Write(ReadOnlySpan<byte> valueToWrite)
         {
-            Span<byte> writeSpan = this.targetByteArray.Slice(this.position);
+            Span<byte> writeSpan = this.targetByte.Slice(this.position);
             valueToWrite.CopyTo(writeSpan);
             this.position += valueToWrite.Length;
+        }
+
+        public void Write(ReadOnlySequence<byte> byteSequenceToWrite)
+        {
+            Span<byte> writeSpan = this.targetByte.Slice(this.position);
+            byteSequenceToWrite.CopyTo(writeSpan);
+
+            this.position += (int)byteSequenceToWrite.Length;
         }
 
         private void WriteValue<T>(T value, int sizeT)
             where T : struct
         {
-            Span<byte> writeSpan = this.targetByteArray.Slice(this.position);
+            Span<byte> writeSpan = this.targetByte.Slice(this.position);
             MemoryMarshal.Write(writeSpan, ref value);
             this.position += sizeT;
         }
