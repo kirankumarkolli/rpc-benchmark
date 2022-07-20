@@ -13,11 +13,11 @@ namespace CosmosBenchmark
 {
     internal class LengthPrefixPipeReader
     {
-        private readonly PipeReader pipeReader;
+        internal readonly PipeReader pipeReader;
         private readonly string diagnticsContext;
 
-        private UInt32 consumedBytesLength = 0;
-        private ReadResult? readResult = null;
+        private SequencePosition? consumedBytesPosition;
+        private ReadOnlySequence<byte>? remainingBytesSequence = null;
 
         public LengthPrefixPipeReader(
             PipeReader pipeReader,
@@ -36,54 +36,57 @@ namespace CosmosBenchmark
                 bool isLengthCountedIn,
                 CancellationToken cancellationToken)
         {
+            UInt32 nextMessageLength = 0;
+            if (remainingBytesSequence.HasValue)
+            {
+                int remainingBytesLength = (int)this.remainingBytesSequence.Value.Length;
+                if (remainingBytesLength >= sizeof(UInt32))
+                {
+                    // Is there space for at-leat length 
+                    nextMessageLength = LengthPrefixPipeReader.ToUInt32(this.remainingBytesSequence.Value);
+                    if (!isLengthCountedIn)
+                    {
+                        nextMessageLength += sizeof(UInt32);
+                    }
+
+                    if (remainingBytesLength >= nextMessageLength)
+                    {
+                        return ExtractMessage(nextMessageLength);
+                    }
+                }
+            }
+
             // Previous message consumed advance the Reader
-            if (this.readResult.HasValue 
-                && this.consumedBytesLength != 0)
+            // Also Advance only once per READAsync
+            if (this.remainingBytesSequence.HasValue 
+                && this.consumedBytesPosition.HasValue)
             {
                 this.pipeReader.AdvanceTo(
-                        this.readResult.Value.Buffer.GetPosition(this.consumedBytesLength),
-                        this.readResult.Value.Buffer.End);
+                        this.consumedBytesPosition.Value,
+                        this.remainingBytesSequence.Value.End);
             }
 
-            UInt32 nextMessageLength = 0;
-            if (readResult.HasValue
-                && this.consumedBytesLength + sizeof(UInt32) <= readResult.Value.Buffer.Length)
-            {
-                // Is there space for at-leat length 
-                ReadOnlySequence<byte> lengthBytesSequence = readResult.Value.Buffer.Slice(this.consumedBytesLength);
-                nextMessageLength = LengthPrefixPipeReader.ToUInt32(lengthBytesSequence);
-                if (!isLengthCountedIn)
-                {
-                    nextMessageLength += sizeof(UInt32);
-                }
+            this.remainingBytesSequence = null;
+            this.consumedBytesPosition = null;
 
-                long pendingBytesToRead = this.consumedBytesLength + nextMessageLength - readResult.Value.Buffer.Length;
-
-                if (pendingBytesToRead <= 0)
-                {
-                    return ExtractMessage(nextMessageLength);
-                }
-            }
-
-            this.readResult = null;
-            this.consumedBytesLength = 0;
-
-            (nextMessageLength, this.readResult) = await ReadLengthPrefixedMessageFullToConsume(
+            (nextMessageLength, ReadResult ReadResult) = await ReadLengthPrefixedMessageFullToConsume(
                                                                 this.pipeReader, 
                                                                 isLengthCountedIn,
                                                                 this.diagnticsContext,
                                                                 cancellationToken);
+            this.remainingBytesSequence = ReadResult.Buffer;
+
             return ExtractMessage(nextMessageLength);
         }
 
         private ReadOnlySequence<byte> ExtractMessage(uint nextMessageLength)
         {
-            ReadOnlySequence<byte> fullMessageSequence = this.readResult.Value.Buffer.Slice(this.consumedBytesLength, nextMessageLength);
+            ReadOnlySequence<byte> fullMessageSequence = this.remainingBytesSequence.Value.Slice(this.remainingBytesSequence.Value.Start, nextMessageLength);
+            this.remainingBytesSequence = this.remainingBytesSequence.Value.Slice(fullMessageSequence.End);
 
             // Update consumed (as message sequence is prepared)
             // Real reader.AdvanceTo will be done on next MoveNext()
-            this.consumedBytesLength += nextMessageLength;
-
+            this.consumedBytesPosition = fullMessageSequence.End;
             return fullMessageSequence;
         }
 
@@ -119,6 +122,11 @@ namespace CosmosBenchmark
 
             ReadResult readResult = await pipeReader.ReadAtLeastAsync(4, cancellationToken);
 
+            if (readResult.IsCanceled || readResult.IsCompleted)
+            {
+                throw new Exception($"{nameof(ReadLengthPrefixedMessageFullToConsume)} failed, Context:{diagnticsContext} ReadResult IsCompleted:{readResult.IsCompleted} IsCancelled:{readResult.IsCanceled} cancellationToken: {cancellationToken.IsCancellationRequested}  ");
+            }
+
             var buffer = readResult.Buffer;
             if (!readResult.IsCompleted)
             {
@@ -137,11 +145,6 @@ namespace CosmosBenchmark
                 }
 
                 Debug.Assert(readResult.Buffer.Length >= length);
-            }
-
-            if (readResult.IsCanceled || readResult.IsCompleted)
-            {
-                throw new Exception($"{nameof(ReadLengthPrefixedMessageFullToConsume)} failed, Context:{diagnticsContext} ReadResult IsCompleted:{readResult.IsCompleted} IsCancelled:{readResult.IsCanceled} cancellationToken: {cancellationToken.IsCancellationRequested}  ");
             }
 
             if (length == 0 || readResult.Buffer.Length < length)

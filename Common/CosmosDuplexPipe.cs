@@ -78,33 +78,18 @@ namespace CosmosBenchmark
             return serverAddresses[addressIndex];
         }
 
-        public async Task ReadDocumentAsync(
+        internal long inflightRequests = 0;
+
+        public ValueTask SubmitReadReqeustAsync(
             string replicaPath,
             string databaseName,
             string contaienrName,
             string itemName,
             string partitionKey)
         {
-            await this.SendReadRequestAsync(replicaPath, databaseName, contaienrName, itemName, partitionKey);
+            Interlocked.Increment(ref this.inflightRequests);
 
-            ReadOnlySequence<byte> messageBytesSequence = await this.Reader.MoveNextAsync(isLengthCountedIn: true, CancellationToken.None);
-
-            // TODO: Incoming context validation 
-            // sizeof(UInt32) -> Length-prefix
-            // sizeof(UInt32) -> Status code
-            // 16 <- Activity id (hard coded)
-            UInt32 connectionContextOffet = (UInt32)(sizeof(UInt32) + sizeof(UInt32) + BytesSerializer.GetSizeOfGuid());
-            UInt32 statusCode = RntbdRequestTokensIterator.ToUInt32(messageBytesSequence.Slice(sizeof(UInt32)));
-            if (statusCode > 399 && statusCode != 404 && statusCode != 429)
-            {
-                throw new Exception($"Non success status code: {statusCode}");
-            }
-
-            if (ResponeHasPayload(messageBytesSequence))
-            {
-                // Payload is present 
-                ReadOnlySequence<byte> payloadBytesSequence = await this.Reader.MoveNextAsync(isLengthCountedIn: false, CancellationToken.None);
-            }
+            return this.SendReadRequestAsync(replicaPath, databaseName, contaienrName, itemName, partitionKey);
         }
 
         public ValueTask SendReadRequestAsync(
@@ -232,6 +217,65 @@ namespace CosmosBenchmark
             await duplexPipe.NegotiateRntbdContextAsClient(cancellationToken);
 
             return duplexPipe;
+        }
+
+        public async Task<Dictionary<uint, int>> ReceiveToNULL(CancellationToken cancellationToken)
+        {
+            Dictionary<uint, int> statusCodeCounts = new();
+            long pendingCount = 0;
+
+            try
+            {
+                do
+                {
+                    Trace.TraceInformation($"Starting response metadata receive traceCxt: {traceDiagnticsContext} Obj: {this.Reader.pipeReader.GetHashCode()}");
+                    ReadOnlySequence<byte> messageBytesSequence = await this.Reader.MoveNextAsync(isLengthCountedIn: true, CancellationToken.None);
+
+                    // TODO: Incoming context validation 
+                    // sizeof(UInt32) -> Length-prefix
+                    // sizeof(UInt32) -> Status code
+                    // 16 <- Activity id (hard coded)
+                    UInt32 connectionContextOffet = (UInt32)(sizeof(UInt32) + sizeof(UInt32) + BytesSerializer.GetSizeOfGuid());
+                    UInt32 statusCode = RntbdRequestTokensIterator.ToUInt32(messageBytesSequence.Slice(sizeof(UInt32)));
+                    // Console.WriteLine($"Received response status code: {statusCode}");
+
+                    if (!statusCodeCounts.ContainsKey(statusCode))
+                    {
+                        statusCodeCounts[statusCode] = 0;
+                    }
+                    statusCodeCounts[statusCode] += 1;
+
+                    Trace.TraceInformation($"Received response metadata status-code: {statusCode} traceCxt: {traceDiagnticsContext} Obj: {this.Reader.pipeReader.GetHashCode()}");
+
+                    if (statusCode > 399 && statusCode != 404 && statusCode != 429)
+                    {
+                        // Console.WriteLine($"Received response status code: {statusCode}");
+                        // throw new Exception($"Non success status code: {statusCode}");
+                    }
+
+                    if (ResponeHasPayload(messageBytesSequence))
+                    {
+                        // Payload is present 
+                        ReadOnlySequence<byte> payloadBytesSequence = await this.Reader.MoveNextAsync(isLengthCountedIn: false, CancellationToken.None);
+                        // Console.WriteLine($"Received response payload traceCxt: {traceDiagnticsContext} Obj: {this.Reader.pipeReader.GetHashCode()}");
+                    }
+
+                    pendingCount = Interlocked.Decrement(ref this.inflightRequests);
+                    // if (pendingCount % 100 == 0)
+                    {
+                        Trace.TraceInformation($"Receive Pending: {pendingCount} cancellationToken: {cancellationToken.IsCancellationRequested}  Obj: {this.Reader.pipeReader.GetHashCode()}");
+                    }
+                }
+                while (!cancellationToken.IsCancellationRequested && pendingCount > 0);
+
+                return statusCodeCounts;
+            }
+            catch (Exception ex)
+            {
+                Trace.TraceError(ex.ToString());
+            }
+
+            return statusCodeCounts;
         }
 
         public static bool ResponeHasPayload(ReadOnlySequence<byte> messagebytesSequence)

@@ -148,22 +148,22 @@ namespace KestrelTcpDemo
             }
             catch (ConnectionResetException ex)
             {
-                Trace.TraceInformation($"{traceDiagnticsContext} -> {ex.ToString()}");
+                Trace.TraceInformation($"Server(obj:{this.GetHashCode()}): {traceDiagnticsContext} -> {ex.ToString()}");
                 context.Abort(new ConnectionAbortedException($"{ex.GetType().Name} -> {traceDiagnticsContext}", ex));
             }
             catch (InvalidOperationException ex) // Connection reset dring Read/Write
             {
-                Trace.TraceError($"{traceDiagnticsContext} -> {ex.ToString()}");
+                Trace.TraceError($"Server(obj:{this.GetHashCode()}): {traceDiagnticsContext} -> {ex.ToString()}");
                 context.Abort(new ConnectionAbortedException($"{ex.GetType().Name} -> {traceDiagnticsContext}", ex));
             }
             catch (Exception ex) // Connection reset dring Read/Write
             {
-                Trace.TraceError($"{traceDiagnticsContext} -> {ex.ToString()}");
+                Trace.TraceError($"Server(obj:{this.GetHashCode()}): {traceDiagnticsContext} -> {ex.ToString()}");
                 context.Abort(new ConnectionAbortedException($"{ex.GetType().Name} -> {traceDiagnticsContext}", ex));
             }
             finally
             {
-                Trace.TraceInformation($"CLOSED: {traceDiagnticsContext}");
+                Trace.TraceInformation($"Server(obj:{this.GetHashCode()}): CLOSED: {traceDiagnticsContext}");
 
                 //ConnectionContext.DisposeAsync() should take care of below
                 //await connection.Transport.Input.CompleteAsync();

@@ -13,7 +13,7 @@ namespace CosmosBenchmark
 {
     internal sealed class LimitedPipeWriter : IDisposable
     {
-        private readonly PipeWriter pipeWriter;
+        internal readonly PipeWriter pipeWriter;
         private readonly SemaphoreSlim semaphore;
 
         public LimitedPipeWriter(
@@ -21,7 +21,7 @@ namespace CosmosBenchmark
             int concurrencyLimit = 1)
         {
             this.pipeWriter = pipeWriter;
-            this.semaphore = new SemaphoreSlim(concurrencyLimit);
+            this.semaphore = new SemaphoreSlim(concurrencyLimit, concurrencyLimit);
         }
 
         public PipeWriter PipeWriter => this.pipeWriter;
@@ -47,6 +47,7 @@ namespace CosmosBenchmark
             catch (Exception ex)
             {
                 Console.WriteLine("LimitedPipeWriter" + ex.ToString());
+                throw;
             }
             finally
             {

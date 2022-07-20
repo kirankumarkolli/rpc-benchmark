@@ -58,10 +58,12 @@ namespace KestrelTcpDemo
         {
             // TODO: (HCCK + Optimization) Fix hard coding 
             byte[] tmpBytes = new byte[4 * 1024];
+            int counter = 1;
 
             while (true)
             {
                 ReadOnlySequence<byte> messagebytesSequence = await incominCosmosDuplexPipe.Reader.MoveNextAsync(isLengthCountedIn: true, cancellationToken);
+                Trace.TraceInformation($"Server (obj: {this.GetHashCode()}): received message {counter++} of size: {messagebytesSequence.Length}");
                 await this.ProcessRntbdMessageRewriteAsync(
                             connectionId,
                             incominCosmosDuplexPipe,
