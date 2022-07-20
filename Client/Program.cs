@@ -107,7 +107,7 @@ namespace CosmosBenchmark
                         long inflightRequests = Interlocked.Read(ref duplexPipe.inflightRequests);
                         if (inflightRequests > 10)
                         {
-                            TimeSpan waitTime = TimeSpan.FromMicroseconds(500);
+                            TimeSpan waitTime = TimeSpan.FromMilliseconds(inflightRequests * 5);
                             // Console.WriteLine($"ClientID:{clentId} Iteration: {newValue}  inflightRequests: {inflightRequests} paused for MS: {waitTime.TotalMilliseconds}");
                             await Task.Delay(waitTime);
                         }
