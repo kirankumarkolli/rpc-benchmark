@@ -20,11 +20,138 @@ namespace CosmosBenchmark
     /// </summary>
     public sealed class Program
     {
+        private static int counter = 0;
+
         /// <summary>
         /// Main method for the sample.
         /// </summary>
         /// <param name="args">command line arguments.</param>
         public static async Task Main(string[] args)
+        {
+            Stopwatch stopwatch = Stopwatch.StartNew();
+
+            int concurrency = 10;
+            int perTaskIterations = 50000;
+            Task<Dictionary<uint, int>>[] allTasks = new Task<Dictionary<uint, int>>[concurrency];
+
+            for (int i = 0; i < concurrency; i++)
+            {
+                allTasks[i] = OneClientWorkRetryAsync(i, perTaskIterations);
+            }
+
+            await Task.WhenAll(allTasks);
+            stopwatch.Stop();
+
+            Dictionary<uint, int> totalTaskResult = allTasks
+                        .Select(d => d.Result)
+                        .SelectMany(d => d)
+                        .ToLookup(pair => pair.Key, pair => pair.Value)
+                        .ToDictionary(group => group.Key, group => group.Sum());
+            foreach(var e in totalTaskResult)
+            {
+                Console.WriteLine($"{e.Key} -> {e.Value}");
+            }
+
+            Console.WriteLine($"Execution time: {stopwatch.ElapsedMilliseconds}");
+            Console.WriteLine("Press ENTER to terminate");
+            Console.ReadLine();
+        }
+
+
+        private static async Task<Dictionary<uint, int>> OneClientWorkRetryAsync(int clentId,
+            int executions)
+        {
+            Dictionary<uint, int> result = new Dictionary<uint, int>();
+
+            while(executions - result.Values.Sum() > 0)
+            {
+                Dictionary<uint, int> iterResult = await OneClientWorkAsync(clentId, executions - result.Count);
+                result = result.Concat(iterResult)
+                            .ToLookup(pair => pair.Key, pair => pair.Value)
+                            .ToDictionary(group => group.Key, group => group.Sum());
+            }
+
+            return result;
+        }
+
+        private static async Task<Dictionary<uint, int>> OneClientWorkAsync(int clentId,
+            int executions)
+        {
+            //string replicaPath = "rntbd://cdb-ms-prod-westus1-fd53.documents.azure.com:14104/apps/4e361f12-a2d0-43ad-b9d4-d63106b2239c/services/8866737c-a179-49f5-a0ce-202391d96417/partitions/008a0b37-198c-4265-80a5-618d1fc2e2f7/replicas/133021509114696822s/";
+            //string replicaPath = "rntbd://127.0.0.1:10251/apps/DocDbApp/services/DocDbServer7/partitions/a4cb4953-38c8-11e6-8106-8cdcd42c33be/replicas/1p";
+            //"/apps/DocDbApp/services/DocDbMaster0/partitions/780e44f4-38c8-11e6-8106-8cdcd42c33be/replicas/1p"
+            //"/apps/DocDbApp/services/DocDbServer7/partitions/a4cb4953-38c8-11e6-8106-8cdcd42c33be/replicas/1p"
+
+            // string replicaPath = "rntbd://127.0.0.1:10253/apps/DocDbApp/services/DocDbServer7/partitions/a4cb4953-38c8-11e6-8106-8cdcd42c33be/replicas/1p";
+            string replicaPath = "https://localhost:8009/127.0.0.1:10253/apps/DocDbApp/services/DocDbServer7/partitions/a4cb4953-38c8-11e6-8106-8cdcd42c33be/replicas/1p";
+            Uri replicaPathUri = new Uri(replicaPath);
+            int newValue = 0;
+
+            CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+            Task<Dictionary<uint, int>> receiveLoopTask = null;
+
+            try
+            {
+                using (CosmosDuplexPipe duplexPipe = await CosmosDuplexPipe.ConnectAsClientAsync(
+                                    replicaPathUri,
+                                    cancellationToken: cancellationTokenSource.Token))
+                {
+                    // Dummy increment to keep receiveloop
+                    Interlocked.Increment(ref duplexPipe.inflightRequests);
+                    receiveLoopTask = duplexPipe.ReceiveToNULL(cancellationTokenSource.Token);
+
+                    while (executions > 0)
+                    {
+                        newValue = Interlocked.Increment(ref counter);
+
+                        long inflightRequests = Interlocked.Read(ref duplexPipe.inflightRequests);
+                        if (inflightRequests > 10)
+                        {
+                            TimeSpan waitTime = TimeSpan.FromMicroseconds(500);
+                            // Console.WriteLine($"ClientID:{clentId} Iteration: {newValue}  inflightRequests: {inflightRequests} paused for MS: {waitTime.TotalMilliseconds}");
+                            await Task.Delay(waitTime);
+                        }
+
+                        await duplexPipe.SubmitReadReqeustAsync(replicaPathUri.PathAndQuery, "db1", "col1", "id1", @"[""id1""]");
+
+                        if (newValue % 100 == 0)
+                        {
+                            // Console.WriteLine($"ClientID:{clentId} Iteration: {newValue} inflightRequests: {inflightRequests} UnflushedBytes(writer): {duplexPipe.Writer.PipeWriter.UnflushedBytes}");
+                        }
+
+                        executions--;
+                    }
+
+                    Interlocked.Decrement(ref duplexPipe.inflightRequests);
+                    Dictionary<uint, int> statusCodes = await receiveLoopTask;
+
+                    Console.WriteLine($"ClientID:{clentId} Completed: {executions} #statusCodes: {statusCodes.Count}");
+                    return statusCodes;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"{newValue} -> {ex.ToString()}");
+            }
+            finally
+            {
+                cancellationTokenSource.Cancel();
+            }
+
+            cancellationTokenSource.Cancel();
+            if(receiveLoopTask != null)
+            {
+                return await receiveLoopTask;
+            }
+
+            return new Dictionary<uint, int>();
+        }
+
+        /// <summary>
+        /// Main method for the sample.
+        /// </summary>
+        /// <param name="args">command line arguments.</param>
+        public static async Task Main1(string[] args)
         {
             try
             {
