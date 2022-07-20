@@ -122,6 +122,11 @@ namespace CosmosBenchmark
 
             ReadResult readResult = await pipeReader.ReadAtLeastAsync(4, cancellationToken);
 
+            if (readResult.IsCanceled || readResult.IsCompleted)
+            {
+                throw new Exception($"{nameof(ReadLengthPrefixedMessageFullToConsume)} failed, Context:{diagnticsContext} ReadResult IsCompleted:{readResult.IsCompleted} IsCancelled:{readResult.IsCanceled} cancellationToken: {cancellationToken.IsCancellationRequested}  ");
+            }
+
             var buffer = readResult.Buffer;
             if (!readResult.IsCompleted)
             {
@@ -140,11 +145,6 @@ namespace CosmosBenchmark
                 }
 
                 Debug.Assert(readResult.Buffer.Length >= length);
-            }
-
-            if (readResult.IsCanceled || readResult.IsCompleted)
-            {
-                throw new Exception($"{nameof(ReadLengthPrefixedMessageFullToConsume)} failed, Context:{diagnticsContext} ReadResult IsCompleted:{readResult.IsCompleted} IsCancelled:{readResult.IsCanceled} cancellationToken: {cancellationToken.IsCancellationRequested}  ");
             }
 
             if (length == 0 || readResult.Buffer.Length < length)
